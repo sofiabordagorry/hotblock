@@ -8,7 +8,10 @@ defmodule Hotblock.Proxy do
   defp loop_acceptor(socket) do
     {:ok, client} = :gen_tcp.accept(socket)
     IO.puts("Client connected")
-    {:ok, pid} = Task.Supervisor.start_child(Hotblock.TaskSupervisor, fn -> serve(client) end)
+
+    {:ok, pid} =
+      Task.Supervisor.start_child(Hotblock.ConnectionSupervisor, fn -> serve(client) end)
+
     :gen_tcp.controlling_process(client, pid)
     loop_acceptor(socket)
   end
