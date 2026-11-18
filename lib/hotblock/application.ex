@@ -8,12 +8,10 @@ defmodule Hotblock.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: Hotblock.Worker.start_link(arg)
-      # {Hotblock.Worker, arg}
+      {Task.Supervisor, name: Hotblock.TaskSupervisor},
+      Supervisor.child_spec({Task, fn -> Hotblock.Proxy.accept(25565) end}, restart: :permanent)
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Hotblock.Supervisor]
     Supervisor.start_link(children, opts)
   end
