@@ -8,7 +8,7 @@ defmodule Hotblock.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Task.Supervisor, name: Hotblock.TaskSupervisor},
+      {Task.Supervisor, name: Hotblock.ConnectionSupervisor},
       Supervisor.child_spec({Task, fn -> Hotblock.Proxy.accept(25565) end}, restart: :permanent)
     ]
 
