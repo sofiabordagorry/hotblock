@@ -14,7 +14,11 @@ defmodule Hotblock.Proxy do
   end
 
   defp serve(client) do
-    {:ok, server} = :gen_tcp.connect(~c"localhost", 25566, [:binary, packet: :raw, active: true])
+    server_port = Application.get_env(:hotblock, :server_port, 25566)
+
+    {:ok, server} =
+      :gen_tcp.connect(~c"localhost", server_port, [:binary, packet: :raw, active: true])
+
     IO.puts("Connected to server")
     :inet.setopts(client, active: true)
     loop(client, server)
