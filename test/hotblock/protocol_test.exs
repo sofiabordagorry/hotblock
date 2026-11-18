@@ -30,6 +30,10 @@ defmodule Hotblock.ProtocolTest do
       assert Protocol.decode_varint(<<0x80, 0x01, 0xAA>>) == {:ok, 128, <<0xAA>>}
     end
 
+    test "keeps only the low 32 bits when the 5th byte overflows" do
+      assert Protocol.decode_varint(<<0xFF, 0xFF, 0xFF, 0xFF, 0x7F>>) == {:ok, -1, ""}
+    end
+
     test "returns :incomplete for an empty binary" do
       assert Protocol.decode_varint(<<>>) == :incomplete
     end
