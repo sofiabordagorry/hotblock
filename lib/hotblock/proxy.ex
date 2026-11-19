@@ -46,9 +46,13 @@ defmodule Hotblock.Proxy do
         loop(%{state | client_buffer: rest, phase: phase})
 
       {:tcp, ^server, data} ->
-        :gen_tcp.send(client, data)
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
-        Enum.each(frames, fn frame -> PacketLogger.log(state.phase, :s2c, frame) end)
+
+        Enum.each(frames, fn frame ->
+          PacketLogger.log(state.phase, :s2c, frame)
+          :gen_tcp.send(client, Protocol.encode_frame(frame))
+        end)
+
         loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
