@@ -17,5 +17,13 @@ defmodule Hotblock.Protocol.Encoder do
   # false shows it in the chat instead of the action bar
   def system_chat(text) do
     encode_packet(Packets.system_chat(), NBT.encode_text(text) <> <<0>>)
+  
+    
+  def set_title_text(text) do
+    encode_packet(Packets.set_title_text(), NBT.encode_text(text))
+  end
+
+  def set_title_times(fade_in, stay, fade_out) do
+    encode_packet(Packets.set_title_times(), <<fade_in::32, stay::32, fade_out::32>>)
   end
 end
