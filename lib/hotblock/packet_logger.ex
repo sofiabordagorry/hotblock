@@ -1,5 +1,5 @@
 defmodule Hotblock.PacketLogger do
-  alias Hotblock.Protocol
+  alias Hotblock.Protocol.Types
   require Logger
 
   # Play packets the logger skips because they are sent all the time.
@@ -69,7 +69,7 @@ defmodule Hotblock.PacketLogger do
 
   def log(phase, direction, frame) do
     if Application.get_env(:hotblock, :packet_logger_enabled, false) do
-      {:ok, packet_id, _} = Protocol.decode_varint(frame)
+      {:ok, packet_id, _} = Types.decode_varint(frame)
 
       unless phase == :play and {direction, packet_id} in @ignored_play_packets do
         Logger.info(

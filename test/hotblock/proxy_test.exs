@@ -21,18 +21,34 @@ defmodule Hotblock.ProxyTest do
     {client, server}
   end
 
-  test "forwards data from client to server", %{listen: listen} do
+  test "forwards frames from client to server", %{listen: listen} do
     {client, server} = connect(listen)
 
-    :ok = :gen_tcp.send(client, "hello server")
-    assert {:ok, "hello server"} = :gen_tcp.recv(server, 0, 1000)
+    :ok = :gen_tcp.send(client, <<0x03, 0xAA, 0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(server, 0, 1000)
   end
 
-  test "forwards data from server to client", %{listen: listen} do
+  test "forwards a client frame that arrives in two parts", %{listen: listen} do
     {client, server} = connect(listen)
 
-    :ok = :gen_tcp.send(server, "hello client")
-    assert {:ok, "hello client"} = :gen_tcp.recv(client, 0, 1000)
+    :ok = :gen_tcp.send(client, <<0x03, 0xAA>>)
+    :ok = :gen_tcp.send(client, <<0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(server, 4, 1000)
+  end
+
+  test "forwards frames from server to client", %{listen: listen} do
+    {client, server} = connect(listen)
+
+    :ok = :gen_tcp.send(server, <<0x03, 0xAA, 0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(client, 0, 1000)
+  end
+
+  test "forwards a server frame that arrives in two parts", %{listen: listen} do
+    {client, server} = connect(listen)
+
+    :ok = :gen_tcp.send(server, <<0x03, 0xAA>>)
+    :ok = :gen_tcp.send(server, <<0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(client, 4, 1000)
   end
 
   test "closes the server connection when the client disconnects", %{listen: listen} do
@@ -53,10 +69,66 @@ defmodule Hotblock.ProxyTest do
     {client1, server1} = connect(listen)
     {client2, server2} = connect(listen)
 
-    :ok = :gen_tcp.send(client1, "player 1")
-    :ok = :gen_tcp.send(client2, "player 2")
+    :ok = :gen_tcp.send(client1, <<0x01, 0x01>>)
+    :ok = :gen_tcp.send(client2, <<0x01, 0x02>>)
 
-    assert {:ok, "player 1"} = :gen_tcp.recv(server1, 0, 1000)
-    assert {:ok, "player 2"} = :gen_tcp.recv(server2, 0, 1000)
+    assert {:ok, <<0x01, 0x01>>} = :gen_tcp.recv(server1, 0, 1000)
+    assert {:ok, <<0x01, 0x02>>} = :gen_tcp.recv(server2, 0, 1000)
+  end
+
+  describe "/hello" do
+    # Frames that take the connection from handshaking to play:
+    # handshake (intent 2), Login Acknowledged, Acknowledge Finish Configuration
+    @to_play <<0x10, 0x00, 0x87, 0x06, 0x09, "localhost", 0x63, 0xDD, 0x02>> <>
+               <<0x01, 0x03>> <>
+               <<0x01, 0x03>>
+
+    # chat_command (0x07) with the command "hello"
+    @hello <<0x07, 0x07, 0x05, "hello">>
+
+    # Any other play packet, sent last to check the connection still works
+    @other <<0x02, 0x0B, 0xAA>>
+
+    # system_chat (0x79) with {text: "Hello from Elixir!"} as NBT and overlay false
+    @hello_reply <<0x1F, 0x79>> <>
+                   <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x12, "Hello from Elixir!", 0x00>> <>
+                   <<0x00>>
+
+    test "does not forward /hello to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @hello <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "replies to the client with a system_chat message", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @hello)
+      assert {:ok, @hello_reply} = :gen_tcp.recv(client, byte_size(@hello_reply), 1000)
+    end
+
+    test "does not put the reply in the middle of a server frame", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      # The server frame arrives in two parts, with the /hello in between
+      :ok = :gen_tcp.send(server, <<0x03, 0xAA>>)
+      :ok = :gen_tcp.send(client, @to_play <> @hello)
+      assert {:ok, @hello_reply} = :gen_tcp.recv(client, byte_size(@hello_reply), 1000)
+
+      :ok = :gen_tcp.send(server, <<0xBB, 0xCC>>)
+      assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(client, 4, 1000)
+    end
+
+    test "forwards /hello and does not reply when not in play yet", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @hello)
+      assert {:ok, @hello} = :gen_tcp.recv(server, 0, 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
   end
 end
