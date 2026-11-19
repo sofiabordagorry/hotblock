@@ -1,6 +1,7 @@
 defmodule Hotblock.Protocol do
-  alias Hotblock.Protocol.Types
   alias Hotblock.Packets
+  alias Hotblock.Protocol.NBT
+  alias Hotblock.Protocol.Types
 
   @max_frame_length 2_097_151
 
@@ -93,4 +94,9 @@ defmodule Hotblock.Protocol do
   end
 
   def hello_command?(_phase, _frame), do: false
+
+  def system_chat(text) do
+    payload = Types.encode_varint(Packets.system_chat()) <> NBT.encode_text(text) <> <<0>>
+    encode_frame(payload)
+  end
 end
