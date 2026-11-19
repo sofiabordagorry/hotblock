@@ -40,9 +40,8 @@ defmodule Hotblock.Proxy do
   defp loop(%{client: client, server: server} = state) do
     receive do
       {:tcp, ^client, data} ->
-        :gen_tcp.send(server, data)
         {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
-        phase = track_phase(state.phase, frames)
+        phase = track_phase(state.phase, frames, server)
 
         loop(%{state | client_buffer: rest, phase: phase})
 
@@ -64,8 +63,9 @@ defmodule Hotblock.Proxy do
 
   # Runs the client's frames through the state machine in order, so a frame
   # is read with the phase set by the frames before it. Logs every change.
-  defp track_phase(phase, frames) do
+  defp track_phase(phase, frames, server) do
     Enum.reduce(frames, phase, fn frame, phase ->
+      :gen_tcp.send(server, Protocol.encode_frame(frame))
       PacketLogger.log(phase, :c2s, frame)
       {:ok, new_phase} = Protocol.next_state(phase, frame)
 

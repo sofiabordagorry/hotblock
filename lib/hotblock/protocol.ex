@@ -120,4 +120,20 @@ defmodule Hotblock.Protocol do
   defp to_signed_32(value) do
     value
   end
+
+  def encode_frame(frame) do
+    encode_varint(byte_size(frame)) <> frame
+  end
+
+  def encode_varint(value) when value < 0 do
+    encode_varint(value &&& 0xFFFFFFFF)
+  end
+
+  def encode_varint(value) when value < 0x80 do
+    <<value>>
+  end
+
+  def encode_varint(value) do
+    <<(value &&& 0x7F) ||| 0x80>> <> encode_varint(value >>> 7)
+  end
 end
