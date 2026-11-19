@@ -170,27 +170,31 @@ defmodule Hotblock.ProtocolTest do
     end
   end
 
-  describe "hello_command?/2" do
+  describe "decode_command/2" do
     # chat_command (0x07) followed by the command, without the slash
-    test "is true for /hello in play" do
-      assert Protocol.hello_command?(:play, <<0x07, 0x05, "hello">>)
+    test "returns the command of a chat_command in play" do
+      assert Protocol.decode_command(:play, <<0x07, 0x05, "hello">>) == {:ok, "hello"}
     end
 
-    test "is false for /hello outside play" do
-      refute Protocol.hello_command?(:configuration, <<0x07, 0x05, "hello">>)
-      refute Protocol.hello_command?(:login, <<0x07, 0x05, "hello">>)
+    test "returns the arguments as part of the command" do
+      assert Protocol.decode_command(:play, <<0x07, 0x0B, "fx title Hi">>) ==
+               {:ok, "fx title Hi"}
     end
 
-    test "is false for other commands" do
-      refute Protocol.hello_command?(:play, <<0x07, 0x04, "help">>)
-      refute Protocol.hello_command?(:play, <<0x07, 0x0B, "hello world">>)
+    test "returns :error outside play" do
+      assert Protocol.decode_command(:configuration, <<0x07, 0x05, "hello">>) == :error
+      assert Protocol.decode_command(:login, <<0x07, 0x05, "hello">>) == :error
     end
 
-    test "is false for other packets" do
+    test "returns :error for other packets" do
       # chat_message (0x09) with the text "hello"
-      refute Protocol.hello_command?(:play, <<0x09, 0x05, "hello">>)
+      assert Protocol.decode_command(:play, <<0x09, 0x05, "hello">>) == :error
       # chat_command_signed (0x08)
-      refute Protocol.hello_command?(:play, <<0x08, 0x05, "hello">>)
+      assert Protocol.decode_command(:play, <<0x08, 0x05, "hello">>) == :error
+    end
+
+    test "returns :error when the command is cut" do
+      assert Protocol.decode_command(:play, <<0x07, 0x05, "hel">>) == :error
     end
   end
 

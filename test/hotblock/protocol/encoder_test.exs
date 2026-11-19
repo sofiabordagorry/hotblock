@@ -58,4 +58,19 @@ defmodule Hotblock.Protocol.EncoderTest do
       assert {:ok, <<0x79, _rest::binary>>, ""} = Protocol.next_frame(Encoder.system_chat("Hi"))
     end
   end
+
+  describe "set_title_time/3" do
+    test "builds the frame with fade in, stay and fade out as 32-bit integers" do
+      assert Encoder.set_title_time(10, 70, 20) ==
+               <<0x0D, 0x73, 10::32, 70::32, 20::32>>
+    end
+  end
+
+  describe "set_title_text/1" do
+    test "builds the frame with the text as NBT" do
+      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+      assert Encoder.set_title_text("Hi") == <<0x0E, 0x72>> <> nbt
+    end
+  end
 end
