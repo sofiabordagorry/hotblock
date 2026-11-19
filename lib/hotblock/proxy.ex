@@ -35,13 +35,13 @@ defmodule Hotblock.Proxy do
       {:tcp, ^client, data} ->
         :gen_tcp.send(server, data)
         {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
-        Logger.info("Received frames from client: #{inspect(frames)}")
+        Logger.debug("Received frames from client: #{inspect(frames)}")
         loop(%{state | client_buffer: rest})
 
       {:tcp, ^server, data} ->
         :gen_tcp.send(client, data)
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
-        Logger.info("Received frames from server: #{inspect(frames)}")
+        Logger.debug("Received frames from server: #{inspect(frames)}")
         loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
