@@ -144,6 +144,82 @@ defmodule Hotblock.ProtocolTest do
     end
   end
 
+  # Handshake payload (without the packet ID) for protocol 775 connecting to
+  # localhost:25565. The intent goes at the end and changes per test.
+  @handshake_fields <<0x87, 0x06>> <> <<0x09, "localhost">> <> <<0x63, 0xDD>>
+
+  describe "decode_handshake/1" do
+    test "decodes every field" do
+      assert Protocol.decode_handshake(@handshake_fields <> <<0x02>>) ==
+               {:ok,
+                %{
+                  protocol_version: 775,
+                  server_address: "localhost",
+                  server_port: 25565,
+                  intent: 2
+                }}
+    end
+
+    test "returns an error when the payload is cut" do
+      assert Protocol.decode_handshake(@handshake_fields) == {:error, :invalid_handshake}
+
+      assert Protocol.decode_handshake(<<0x87, 0x06, 0x09, "local">>) ==
+               {:error, :invalid_handshake}
+    end
+
+    test "returns an error when there are bytes after the intent" do
+      assert Protocol.decode_handshake(@handshake_fields <> <<0x02, 0xAA>>) ==
+               {:error, :invalid_handshake}
+    end
+  end
+
+  describe "next_state/2" do
+    test "goes from handshaking to status when the intent is 1" do
+      assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x01>>) ==
+               {:ok, :status}
+    end
+
+    test "goes from handshaking to login when the intent is 2" do
+      assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x02>>) ==
+               {:ok, :login}
+    end
+
+    test "goes from handshaking to login when the intent is 3 (transfer)" do
+      assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x03>>) ==
+               {:ok, :login}
+    end
+
+    test "goes from login to configuration on Login Acknowledged" do
+      assert Protocol.next_state(:login, <<0x03>>) == {:ok, :configuration}
+    end
+
+    test "goes from configuration to play on Acknowledge Finish Configuration" do
+      assert Protocol.next_state(:configuration, <<0x03>>) == {:ok, :play}
+    end
+
+    test "keeps the state for other packets" do
+      # Login Start, in login
+      assert Protocol.next_state(:login, <<0x00, 0x05, "steve">>) == {:ok, :login}
+      # Client Information, in configuration
+      assert Protocol.next_state(:configuration, <<0x00, 0xAA>>) == {:ok, :configuration}
+    end
+
+    test "only uses ID 0x03 in the state where it means a change" do
+      assert Protocol.next_state(:status, <<0x03>>) == {:ok, :status}
+      assert Protocol.next_state(:play, <<0x03>>) == {:ok, :play}
+    end
+
+    test "returns an error for an invalid handshake" do
+      assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields) ==
+               {:error, :invalid_handshake}
+    end
+
+    test "returns an error for an unknown intent" do
+      assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x04>>) ==
+               {:error, :invalid_intent}
+    end
+  end
+
   # Feeds the chunks one by one, like successive TCP reads, keeping the
   # leftover bytes between calls. Returns every frame it got, in order.
   defp feed(chunks) do

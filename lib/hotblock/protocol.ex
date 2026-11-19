@@ -42,6 +42,48 @@ defmodule Hotblock.Protocol do
     end
   end
 
+  def next_state(:handshaking, <<0x00, payload::binary>>) do
+    case decode_handshake(payload) do
+      {:ok, %{intent: 1}} -> {:ok, :status}
+      {:ok, %{intent: intent}} when intent in [2, 3] -> {:ok, :login}
+      {:ok, _handshake} -> {:error, :invalid_intent}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def next_state(:login, <<0x03, _rest::binary>>), do: {:ok, :configuration}
+
+  def next_state(:configuration, <<0x03, _rest::binary>>), do: {:ok, :play}
+
+  def next_state(state, _frame), do: {:ok, state}
+
+  def decode_handshake(payload) do
+    with {:ok, protocol_version, rest} <- decode_varint(payload),
+         {:ok, server_address, rest} <- decode_string(rest),
+         <<server_port::16, rest::binary>> <- rest,
+         {:ok, intent, <<>>} <- decode_varint(rest) do
+      {:ok,
+       %{
+         protocol_version: protocol_version,
+         server_address: server_address,
+         server_port: server_port,
+         intent: intent
+       }}
+    else
+      _ -> {:error, :invalid_handshake}
+    end
+  end
+
+  # A string is a VarInt with the length in bytes, followed by the UTF-8 bytes
+  defp decode_string(binary) do
+    with {:ok, length, rest} when length >= 0 <- decode_varint(binary),
+         <<string::binary-size(^length), remaining::binary>> <- rest do
+      {:ok, string, remaining}
+    else
+      _ -> {:error, :invalid_string}
+    end
+  end
+
   def decode_varint(binary) do
     decode_varint(binary, 0, 0)
   end
