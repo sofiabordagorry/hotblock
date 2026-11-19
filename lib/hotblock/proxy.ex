@@ -1,5 +1,5 @@
 defmodule Hotblock.Proxy do
-  alias Hotblock.Protocol
+  alias Hotblock.{PacketLogger, Protocol}
   require Logger
 
   def accept(port) do
@@ -43,11 +43,13 @@ defmodule Hotblock.Proxy do
         :gen_tcp.send(server, data)
         {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
         phase = track_phase(state.phase, frames)
+
         loop(%{state | client_buffer: rest, phase: phase})
 
       {:tcp, ^server, data} ->
         :gen_tcp.send(client, data)
-        {:ok, _frames, rest} = Protocol.split_frames(state.server_buffer <> data)
+        {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
+        Enum.each(frames, fn frame -> PacketLogger.log(state.phase, :s2c, frame) end)
         loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
@@ -64,6 +66,7 @@ defmodule Hotblock.Proxy do
   # is read with the phase set by the frames before it. Logs every change.
   defp track_phase(phase, frames) do
     Enum.reduce(frames, phase, fn frame, phase ->
+      PacketLogger.log(phase, :c2s, frame)
       {:ok, new_phase} = Protocol.next_state(phase, frame)
 
       if new_phase != phase do
