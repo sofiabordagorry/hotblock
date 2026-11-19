@@ -27,15 +27,23 @@ defmodule Hotblock.Proxy do
 
     Logger.info("Connected to server")
     :inet.setopts(client, active: true)
-    loop(%{client: client, server: server, client_buffer: <<>>, server_buffer: <<>>})
+
+    loop(%{
+      client: client,
+      server: server,
+      client_buffer: <<>>,
+      server_buffer: <<>>,
+      phase: :handshaking
+    })
   end
 
   defp loop(%{client: client, server: server} = state) do
     receive do
       {:tcp, ^client, data} ->
         :gen_tcp.send(server, data)
-        {:ok, _frames, rest} = Protocol.split_frames(state.client_buffer <> data)
-        loop(%{state | client_buffer: rest})
+        {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
+        phase = track_phase(state.phase, frames)
+        loop(%{state | client_buffer: rest, phase: phase})
 
       {:tcp, ^server, data} ->
         :gen_tcp.send(client, data)
@@ -50,5 +58,14 @@ defmodule Hotblock.Proxy do
         Logger.info("Server disconnected")
         :gen_tcp.close(client)
     end
+  end
+
+  # Runs the client's frames through the state machine in order, so a frame
+  # is read with the phase set by the frames before it
+  defp track_phase(phase, frames) do
+    Enum.reduce(frames, phase, fn frame, phase ->
+      {:ok, new_phase} = Protocol.next_state(phase, frame)
+      new_phase
+    end)
   end
 end

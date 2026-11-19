@@ -42,6 +42,21 @@ defmodule Hotblock.Protocol do
     end
   end
 
+  def next_state(:handshaking, <<0x00, payload::binary>>) do
+    case decode_handshake(payload) do
+      {:ok, %{intent: 1}} -> {:ok, :status}
+      {:ok, %{intent: intent}} when intent in [2, 3] -> {:ok, :login}
+      {:ok, _handshake} -> {:error, :invalid_intent}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def next_state(:login, <<0x03, _rest::binary>>), do: {:ok, :configuration}
+
+  def next_state(:configuration, <<0x03, _rest::binary>>), do: {:ok, :play}
+
+  def next_state(state, _frame), do: {:ok, state}
+
   def decode_handshake(payload) do
     with {:ok, protocol_version, rest} <- decode_varint(payload),
          {:ok, server_address, rest} <- decode_string(rest),
