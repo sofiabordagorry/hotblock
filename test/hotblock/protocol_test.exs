@@ -211,6 +211,18 @@ defmodule Hotblock.ProtocolTest do
     end
   end
 
+  describe "system_chat/1" do
+    test "builds the full frame: length, ID, NBT text and overlay false" do
+      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+      assert Protocol.system_chat("Hi") == <<0x0F, 0x79>> <> nbt <> <<0x00>>
+    end
+
+    test "can be read back with next_frame" do
+      assert {:ok, <<0x79, _rest::binary>>, ""} = Protocol.next_frame(Protocol.system_chat("Hi"))
+    end
+  end
+
   # Feeds the chunks one by one, like successive TCP reads, keeping the
   # leftover bytes between calls. Returns every frame it got, in order.
   defp feed(chunks) do
