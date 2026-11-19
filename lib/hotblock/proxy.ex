@@ -61,10 +61,15 @@ defmodule Hotblock.Proxy do
   end
 
   # Runs the client's frames through the state machine in order, so a frame
-  # is read with the phase set by the frames before it
+  # is read with the phase set by the frames before it. Logs every change.
   defp track_phase(phase, frames) do
     Enum.reduce(frames, phase, fn frame, phase ->
       {:ok, new_phase} = Protocol.next_state(phase, frame)
+
+      if new_phase != phase do
+        Logger.info("#{phase} -> #{new_phase}")
+      end
+
       new_phase
     end)
   end
