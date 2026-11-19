@@ -12,6 +12,10 @@ defmodule Hotblock.Protocol.Types do
     end
   end
 
+  def encode_string(string) do
+    encode_varint(byte_size(string)) <> string
+  end
+
   def decode_varint(binary) do
     decode_varint(binary, 0, 0)
   end

@@ -80,4 +80,31 @@ defmodule Hotblock.Protocol.TypesTest do
       assert Types.decode_string(<<0x05, "hel">>) == {:error, :invalid_string}
     end
   end
+
+  describe "encode_string/1" do
+    test "puts the length in bytes before the string" do
+      assert Types.encode_string("hello") == <<0x05, "hello">>
+    end
+
+    test "encodes an empty string" do
+      assert Types.encode_string("") == <<0x00>>
+    end
+
+    test "uses the length in bytes, not in characters" do
+      # "ñ" is 2 bytes in UTF-8
+      assert Types.encode_string("ñ") == <<0x02, "ñ">>
+    end
+
+    test "uses more than one byte for the length of a long string" do
+      string = String.duplicate("a", 200)
+
+      assert Types.encode_string(string) == <<0xC8, 0x01>> <> string
+    end
+
+    test "gives back the same string when decoded" do
+      for string <- ["", "hello", "Hello from Elixir!", "ñandú", String.duplicate("a", 200)] do
+        assert Types.decode_string(Types.encode_string(string)) == {:ok, string, ""}
+      end
+    end
+  end
 end

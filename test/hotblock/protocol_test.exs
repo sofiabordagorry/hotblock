@@ -3,23 +3,6 @@ defmodule Hotblock.ProtocolTest do
 
   alias Hotblock.Protocol
 
-  describe "encode_frame/1" do
-    test "adds the length in front of the frame" do
-      assert Protocol.encode_frame(<<0xAA, 0xBB, 0xCC>>) == <<0x03, 0xAA, 0xBB, 0xCC>>
-    end
-
-    test "uses more than one byte for a long frame" do
-      payload = :binary.copy(<<0xAA>>, 200)
-
-      assert Protocol.encode_frame(payload) == <<0xC8, 0x01>> <> payload
-    end
-
-    test "gives back the same frame when read with next_frame" do
-      assert Protocol.next_frame(Protocol.encode_frame(<<0xAA, 0xBB>>)) ==
-               {:ok, <<0xAA, 0xBB>>, ""}
-    end
-  end
-
   describe "next_frame/1" do
     test "returns a complete frame and an empty rest" do
       assert Protocol.next_frame(<<0x03, 0xAA, 0xBB, 0xCC>>) == {:ok, <<0xAA, 0xBB, 0xCC>>, ""}
@@ -208,18 +191,6 @@ defmodule Hotblock.ProtocolTest do
       refute Protocol.hello_command?(:play, <<0x09, 0x05, "hello">>)
       # chat_command_signed (0x08)
       refute Protocol.hello_command?(:play, <<0x08, 0x05, "hello">>)
-    end
-  end
-
-  describe "system_chat/1" do
-    test "builds the full frame: length, ID, NBT text and overlay false" do
-      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
-
-      assert Protocol.system_chat("Hi") == <<0x0F, 0x79>> <> nbt <> <<0x00>>
-    end
-
-    test "can be read back with next_frame" do
-      assert {:ok, <<0x79, _rest::binary>>, ""} = Protocol.next_frame(Protocol.system_chat("Hi"))
     end
   end
 

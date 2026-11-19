@@ -1,5 +1,7 @@
 defmodule Hotblock.Proxy do
-  alias Hotblock.{PacketLogger, Protocol}
+  alias Hotblock.PacketLogger
+  alias Hotblock.Protocol
+  alias Hotblock.Protocol.Encoder
   require Logger
 
   def accept(port) do
@@ -50,7 +52,7 @@ defmodule Hotblock.Proxy do
 
         Enum.each(frames, fn frame ->
           PacketLogger.log(state.phase, :s2c, frame)
-          :gen_tcp.send(client, Protocol.encode_frame(frame))
+          :gen_tcp.send(client, Encoder.encode_frame(frame))
         end)
 
         loop(%{state | server_buffer: rest})
@@ -70,9 +72,9 @@ defmodule Hotblock.Proxy do
   defp track_phase(phase, frames, state) do
     Enum.reduce(frames, phase, fn frame, phase ->
       if Protocol.hello_command?(phase, frame) do
-        :gen_tcp.send(state.client, Protocol.system_chat("Hello from Elixir!"))
+        :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
       else
-        :gen_tcp.send(state.server, Protocol.encode_frame(frame))
+        :gen_tcp.send(state.server, Encoder.encode_frame(frame))
       end
 
       PacketLogger.log(phase, :c2s, frame)

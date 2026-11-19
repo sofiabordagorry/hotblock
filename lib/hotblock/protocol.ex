@@ -1,6 +1,5 @@
 defmodule Hotblock.Protocol do
   alias Hotblock.Packets
-  alias Hotblock.Protocol.NBT
   alias Hotblock.Protocol.Types
 
   @max_frame_length 2_097_151
@@ -77,10 +76,6 @@ defmodule Hotblock.Protocol do
     end
   end
 
-  def encode_frame(frame) do
-    Types.encode_varint(byte_size(frame)) <> frame
-  end
-
   # True when the frame is a chat_command for /hello (it comes without the slash)
   def hello_command?(:play, frame) do
     chat_command = Packets.chat_command()
@@ -94,9 +89,4 @@ defmodule Hotblock.Protocol do
   end
 
   def hello_command?(_phase, _frame), do: false
-
-  def system_chat(text) do
-    payload = Types.encode_varint(Packets.system_chat()) <> NBT.encode_text(text) <> <<0>>
-    encode_frame(payload)
-  end
 end
