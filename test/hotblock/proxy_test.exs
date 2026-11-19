@@ -21,11 +21,19 @@ defmodule Hotblock.ProxyTest do
     {client, server}
   end
 
-  test "forwards data from client to server", %{listen: listen} do
+  test "forwards frames from client to server", %{listen: listen} do
     {client, server} = connect(listen)
 
-    :ok = :gen_tcp.send(client, "hello server")
-    assert {:ok, "hello server"} = :gen_tcp.recv(server, 0, 1000)
+    :ok = :gen_tcp.send(client, <<0x03, 0xAA, 0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(server, 0, 1000)
+  end
+
+  test "forwards a client frame that arrives in two parts", %{listen: listen} do
+    {client, server} = connect(listen)
+
+    :ok = :gen_tcp.send(client, <<0x03, 0xAA>>)
+    :ok = :gen_tcp.send(client, <<0xBB, 0xCC>>)
+    assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(server, 4, 1000)
   end
 
   test "forwards data from server to client", %{listen: listen} do
@@ -53,10 +61,41 @@ defmodule Hotblock.ProxyTest do
     {client1, server1} = connect(listen)
     {client2, server2} = connect(listen)
 
-    :ok = :gen_tcp.send(client1, "player 1")
-    :ok = :gen_tcp.send(client2, "player 2")
+    :ok = :gen_tcp.send(client1, <<0x01, 0x01>>)
+    :ok = :gen_tcp.send(client2, <<0x01, 0x02>>)
 
-    assert {:ok, "player 1"} = :gen_tcp.recv(server1, 0, 1000)
-    assert {:ok, "player 2"} = :gen_tcp.recv(server2, 0, 1000)
+    assert {:ok, <<0x01, 0x01>>} = :gen_tcp.recv(server1, 0, 1000)
+    assert {:ok, <<0x01, 0x02>>} = :gen_tcp.recv(server2, 0, 1000)
+  end
+
+  describe "/hello" do
+    # Frames that take the connection from handshaking to play:
+    # handshake (intent 2), Login Acknowledged, Acknowledge Finish Configuration
+    @to_play <<0x10, 0x00, 0x87, 0x06, 0x09, "localhost", 0x63, 0xDD, 0x02>> <>
+               <<0x01, 0x03>> <>
+               <<0x01, 0x03>>
+
+    # chat_command (0x07) with the command "hello"
+    @hello <<0x07, 0x07, 0x05, "hello">>
+
+    # Any other play packet, sent last to check the connection still works
+    @other <<0x02, 0x0B, 0xAA>>
+
+    test "does not forward /hello to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @hello <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "forwards /hello when the connection is not in play yet", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @hello)
+      assert {:ok, @hello} = :gen_tcp.recv(server, 0, 1000)
+    end
   end
 end

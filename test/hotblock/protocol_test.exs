@@ -53,6 +53,37 @@ defmodule Hotblock.ProtocolTest do
     end
   end
 
+  describe "encode_varint/1" do
+    for {value, bytes} <- @samples, value >= 0 do
+      test "encodes #{value} as #{inspect(bytes, base: :hex)}" do
+        assert Protocol.encode_varint(unquote(value)) == unquote(bytes)
+      end
+    end
+
+    test "gives back the same value when decoded" do
+      for value <- [0, 1, 127, 128, 300, 25565, 2_097_151, 2_147_483_647] do
+        assert Protocol.decode_varint(Protocol.encode_varint(value)) == {:ok, value, ""}
+      end
+    end
+  end
+
+  describe "encode_frame/1" do
+    test "adds the length in front of the frame" do
+      assert Protocol.encode_frame(<<0xAA, 0xBB, 0xCC>>) == <<0x03, 0xAA, 0xBB, 0xCC>>
+    end
+
+    test "uses more than one byte for a long frame" do
+      payload = :binary.copy(<<0xAA>>, 200)
+
+      assert Protocol.encode_frame(payload) == <<0xC8, 0x01>> <> payload
+    end
+
+    test "gives back the same frame when read with next_frame" do
+      assert Protocol.next_frame(Protocol.encode_frame(<<0xAA, 0xBB>>)) ==
+               {:ok, <<0xAA, 0xBB>>, ""}
+    end
+  end
+
   describe "next_frame/1" do
     test "returns a complete frame and an empty rest" do
       assert Protocol.next_frame(<<0x03, 0xAA, 0xBB, 0xCC>>) == {:ok, <<0xAA, 0xBB, 0xCC>>, ""}
@@ -173,6 +204,20 @@ defmodule Hotblock.ProtocolTest do
     end
   end
 
+  describe "decode_string/1" do
+    test "decodes the string and returns the bytes after it" do
+      assert Protocol.decode_string(<<0x05, "hello", 0xAA>>) == {:ok, "hello", <<0xAA>>}
+    end
+
+    test "decodes an empty string" do
+      assert Protocol.decode_string(<<0x00>>) == {:ok, "", ""}
+    end
+
+    test "returns an error when the string is cut" do
+      assert Protocol.decode_string(<<0x05, "hel">>) == {:error, :invalid_string}
+    end
+  end
+
   describe "next_state/2" do
     test "goes from handshaking to status when the intent is 1" do
       assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x01>>) ==
@@ -217,6 +262,30 @@ defmodule Hotblock.ProtocolTest do
     test "returns an error for an unknown intent" do
       assert Protocol.next_state(:handshaking, <<0x00>> <> @handshake_fields <> <<0x04>>) ==
                {:error, :invalid_intent}
+    end
+  end
+
+  describe "hello_command?/2" do
+    # chat_command (0x07) followed by the command, without the slash
+    test "is true for /hello in play" do
+      assert Protocol.hello_command?(:play, <<0x07, 0x05, "hello">>)
+    end
+
+    test "is false for /hello outside play" do
+      refute Protocol.hello_command?(:configuration, <<0x07, 0x05, "hello">>)
+      refute Protocol.hello_command?(:login, <<0x07, 0x05, "hello">>)
+    end
+
+    test "is false for other commands" do
+      refute Protocol.hello_command?(:play, <<0x07, 0x04, "help">>)
+      refute Protocol.hello_command?(:play, <<0x07, 0x0B, "hello world">>)
+    end
+
+    test "is false for other packets" do
+      # chat_message (0x09) with the text "hello"
+      refute Protocol.hello_command?(:play, <<0x09, 0x05, "hello">>)
+      # chat_command_signed (0x08)
+      refute Protocol.hello_command?(:play, <<0x08, 0x05, "hello">>)
     end
   end
 
