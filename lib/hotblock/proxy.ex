@@ -1,4 +1,7 @@
 defmodule Hotblock.Proxy do
+  alias Hotblock.Protocol
+  require Logger
+
   def accept(port) do
     {:ok, socket} = :gen_tcp.listen(port, [:binary, packet: :raw, active: false, reuseaddr: true])
     IO.puts("Listening on port #{port}")
@@ -24,18 +27,22 @@ defmodule Hotblock.Proxy do
 
     IO.puts("Connected to server")
     :inet.setopts(client, active: true)
-    loop(client, server)
+    loop(%{client: client, server: server, client_buffer: <<>>, server_buffer: <<>>})
   end
 
-  defp loop(client, server) do
+  defp loop(%{client: client, server: server} = state) do
     receive do
       {:tcp, ^client, data} ->
         :gen_tcp.send(server, data)
-        loop(client, server)
+        {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
+        Logger.info("Received frames from client: #{inspect(frames)}")
+        loop(%{state | client_buffer: rest})
 
       {:tcp, ^server, data} ->
         :gen_tcp.send(client, data)
-        loop(client, server)
+        {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
+        Logger.info("Received frames from server: #{inspect(frames)}")
+        loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
         IO.puts("Client disconnected")
