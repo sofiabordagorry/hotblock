@@ -42,6 +42,33 @@ defmodule Hotblock.Protocol do
     end
   end
 
+  def decode_handshake(payload) do
+    with {:ok, protocol_version, rest} <- decode_varint(payload),
+         {:ok, server_address, rest} <- decode_string(rest),
+         <<server_port::16, rest::binary>> <- rest,
+         {:ok, intent, <<>>} <- decode_varint(rest) do
+      {:ok,
+       %{
+         protocol_version: protocol_version,
+         server_address: server_address,
+         server_port: server_port,
+         intent: intent
+       }}
+    else
+      _ -> {:error, :invalid_handshake}
+    end
+  end
+
+  # A string is a VarInt with the length in bytes, followed by the UTF-8 bytes
+  defp decode_string(binary) do
+    with {:ok, length, rest} when length >= 0 <- decode_varint(binary),
+         <<string::binary-size(^length), remaining::binary>> <- rest do
+      {:ok, string, remaining}
+    else
+      _ -> {:error, :invalid_string}
+    end
+  end
+
   def decode_varint(binary) do
     decode_varint(binary, 0, 0)
   end
