@@ -1,5 +1,7 @@
 defmodule Hotblock.Protocol do
   alias Hotblock.Protocol.Types
+  alias Hotblock.Packets
+
   @max_frame_length 2_097_151
 
   def split_frames(buffer) do
@@ -77,4 +79,18 @@ defmodule Hotblock.Protocol do
   def encode_frame(frame) do
     Types.encode_varint(byte_size(frame)) <> frame
   end
+
+  # True when the frame is a chat_command for /hello (it comes without the slash)
+  def hello_command?(:play, frame) do
+    chat_command = Packets.chat_command()
+
+    with {:ok, ^chat_command, rest} <- Types.decode_varint(frame),
+         {:ok, "hello", <<>>} <- Types.decode_string(rest) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  def hello_command?(_phase, _frame), do: false
 end

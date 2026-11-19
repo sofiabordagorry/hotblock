@@ -65,7 +65,10 @@ defmodule Hotblock.Proxy do
   # is read with the phase set by the frames before it. Logs every change.
   defp track_phase(phase, frames, server) do
     Enum.reduce(frames, phase, fn frame, phase ->
-      :gen_tcp.send(server, Protocol.encode_frame(frame))
+      unless Protocol.hello_command?(phase, frame) do
+        :gen_tcp.send(server, Protocol.encode_frame(frame))
+      end
+
       PacketLogger.log(phase, :c2s, frame)
       {:ok, new_phase} = Protocol.next_state(phase, frame)
 
