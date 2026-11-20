@@ -1,4 +1,5 @@
 defmodule Hotblock.Proxy do
+  alias Hotblock.Commands
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
@@ -72,11 +73,14 @@ defmodule Hotblock.Proxy do
   defp track_phase(phase, frames, state) do
     Enum.reduce(frames, phase, fn frame, phase ->
       case Protocol.decode_command(phase, frame) do
-        {:ok, "hello"} ->
+        {:ok, "hotblock:hello"} ->
           :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
 
-        {:ok, "fx title " <> text} when text != "" ->
+        {:ok, "hotblock:fx title " <> text} when text != "" ->
           send_title(state.client, text)
+
+        {:ok, "hotblock:help"} ->
+          :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
 
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))

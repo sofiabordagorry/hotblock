@@ -76,15 +76,15 @@ defmodule Hotblock.ProxyTest do
     assert {:ok, <<0x01, 0x02>>} = :gen_tcp.recv(server2, 0, 1000)
   end
 
-  describe "/hello" do
+  describe "/hotblock:hello" do
     # Frames that take the connection from handshaking to play:
     # handshake (intent 2), Login Acknowledged, Acknowledge Finish Configuration
     @to_play <<0x10, 0x00, 0x87, 0x06, 0x09, "localhost", 0x63, 0xDD, 0x02>> <>
                <<0x01, 0x03>> <>
                <<0x01, 0x03>>
 
-    # chat_command (0x07) with the command "hello"
-    @hello <<0x07, 0x07, 0x05, "hello">>
+    # chat_command (0x07) with the command "hotblock:hello"
+    @hello <<0x10, 0x07, 0x0E, "hotblock:hello">>
 
     # Any other play packet, sent last to check the connection still works
     @other <<0x02, 0x0B, 0xAA>>
@@ -94,7 +94,7 @@ defmodule Hotblock.ProxyTest do
                    <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x12, "Hello from Elixir!", 0x00>> <>
                    <<0x00>>
 
-    test "does not forward /hello to the server in play", %{listen: listen} do
+    test "does not forward /hotblock:hello to the server in play", %{listen: listen} do
       {client, server} = connect(listen)
 
       :ok = :gen_tcp.send(client, @to_play <> @hello <> @other)
@@ -114,7 +114,7 @@ defmodule Hotblock.ProxyTest do
     test "does not put the reply in the middle of a server frame", %{listen: listen} do
       {client, server} = connect(listen)
 
-      # The server frame arrives in two parts, with the /hello in between
+      # The server frame arrives in two parts, with the /hotblock:hello in between
       :ok = :gen_tcp.send(server, <<0x03, 0xAA>>)
       :ok = :gen_tcp.send(client, @to_play <> @hello)
       assert {:ok, @hello_reply} = :gen_tcp.recv(client, byte_size(@hello_reply), 1000)
@@ -123,7 +123,7 @@ defmodule Hotblock.ProxyTest do
       assert {:ok, <<0x03, 0xAA, 0xBB, 0xCC>>} = :gen_tcp.recv(client, 4, 1000)
     end
 
-    test "forwards /hello and does not reply when not in play yet", %{listen: listen} do
+    test "forwards /hotblock:hello and does not reply when not in play yet", %{listen: listen} do
       {client, server} = connect(listen)
 
       :ok = :gen_tcp.send(client, @hello)
@@ -132,9 +132,9 @@ defmodule Hotblock.ProxyTest do
     end
   end
 
-  describe "/fx title" do
-    # chat_command (0x07) with the command "fx title Hi"
-    @fx_title <<0x0D, 0x07, 0x0B, "fx title Hi">>
+  describe "/hotblock:fx title" do
+    # chat_command (0x07) with the command "hotblock:fx title Hi"
+    @fx_title <<0x16, 0x07, 0x14, "hotblock:fx title Hi">>
 
     # set_title_time (0x73) with fade in 10, stay 70 and fade out 20 ticks
     @title_time <<0x0D, 0x73, 10::32, 70::32, 20::32>>
@@ -147,7 +147,7 @@ defmodule Hotblock.ProxyTest do
 
     @title_reply @title_time <> @empty_subtitle <> @title_text
 
-    test "does not forward /fx title to the server in play", %{listen: listen} do
+    test "does not forward /hotblock:fx title to the server in play", %{listen: listen} do
       {client, server} = connect(listen)
 
       :ok = :gen_tcp.send(client, @to_play <> @fx_title <> @other)
@@ -167,7 +167,8 @@ defmodule Hotblock.ProxyTest do
     test "keeps the spaces in the text", %{listen: listen} do
       {client, _server} = connect(listen)
 
-      :ok = :gen_tcp.send(client, @to_play <> <<0x16, 0x07, 0x14, "fx title Hello world">>)
+      :ok =
+        :gen_tcp.send(client, @to_play <> <<0x1F, 0x07, 0x1D, "hotblock:fx title Hello world">>)
 
       expected =
         @title_time <>
@@ -180,7 +181,8 @@ defmodule Hotblock.ProxyTest do
     test "sends the text after \" | \" as the subtitle", %{listen: listen} do
       {client, _server} = connect(listen)
 
-      :ok = :gen_tcp.send(client, @to_play <> <<0x15, 0x07, 0x13, "fx title Hi | there">>)
+      :ok =
+        :gen_tcp.send(client, @to_play <> <<0x1E, 0x07, 0x1C, "hotblock:fx title Hi | there">>)
 
       expected =
         @title_time <>
@@ -190,15 +192,39 @@ defmodule Hotblock.ProxyTest do
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
 
-    test "forwards /fx title without text to the server", %{listen: listen} do
+    test "forwards /hotblock:fx title without text to the server", %{listen: listen} do
       {client, server} = connect(listen)
 
-      fx_title_empty = <<0x0A, 0x07, 0x08, "fx title">>
+      fx_title_empty = <<0x13, 0x07, 0x11, "hotblock:fx title">>
       :ok = :gen_tcp.send(client, @to_play <> fx_title_empty)
 
       expected = @to_play <> fx_title_empty
       assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+  end
+
+  describe "/hotblock:help" do
+    # chat_command (0x07) with the command "hotblock:help"
+    @help <<0x0F, 0x07, 0x0D, "hotblock:help">>
+
+    test "does not forward /hotblock:help to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @help <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "replies with the help text in the chat", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @help)
+
+      expected = Hotblock.Protocol.Encoder.system_chat(Hotblock.Commands.help_text())
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
   end
 end
