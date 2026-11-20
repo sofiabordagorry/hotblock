@@ -18,4 +18,16 @@ defmodule Hotblock.Protocol.Encoder do
   def system_chat(text) do
     encode_packet(Packets.system_chat(), NBT.encode_text(text) <> <<0>>)
   end
+
+  def set_title_subtitle(text) do
+    encode_packet(Packets.set_title_subtitle(), NBT.encode_text(text))
+  end
+
+  def set_title_text(text) do
+    encode_packet(Packets.set_title_text(), NBT.encode_text(text))
+  end
+
+  def set_title_time(fade_in, stay, fade_out) do
+    encode_packet(Packets.set_title_time(), <<fade_in::32, stay::32, fade_out::32>>)
+  end
 end

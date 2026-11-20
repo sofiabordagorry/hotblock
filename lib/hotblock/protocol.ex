@@ -76,17 +76,16 @@ defmodule Hotblock.Protocol do
     end
   end
 
-  # True when the frame is a chat_command for /hello (it comes without the slash)
-  def hello_command?(:play, frame) do
+  def decode_command(:play, frame) do
     chat_command = Packets.chat_command()
 
     with {:ok, ^chat_command, rest} <- Types.decode_varint(frame),
-         {:ok, "hello", <<>>} <- Types.decode_string(rest) do
-      true
+         {:ok, command, <<>>} <- Types.decode_string(rest) do
+      {:ok, command}
     else
-      _ -> false
+      _ -> :error
     end
   end
 
-  def hello_command?(_phase, _frame), do: false
+  def decode_command(_phase, _frame), do: :error
 end
