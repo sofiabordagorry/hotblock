@@ -7,6 +7,10 @@ defmodule Hotblock.Commands do
       description: "Shows a title on the screen"
     },
     %{usage: "/hotblock:fx actionbar <text>", description: "Shows a text above the hotbar"},
+    %{
+      usage: "/hotblock:fx weather clear|rain|thunder",
+      description: "Changes the weather only for you"
+    },
     %{usage: "/hotblock:help", description: "Lists the proxy's commands"}
   ]
 
