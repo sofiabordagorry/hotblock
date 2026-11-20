@@ -36,7 +36,8 @@ defmodule Hotblock.Proxy do
       server: server,
       client_buffer: <<>>,
       server_buffer: <<>>,
-      phase: :handshaking
+      phase: :handshaking,
+      boss_bar: nil
     })
   end
 
@@ -44,9 +45,8 @@ defmodule Hotblock.Proxy do
     receive do
       {:tcp, ^client, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
-        phase = track_phase(state.phase, frames, state)
-
-        loop(%{state | client_buffer: rest, phase: phase})
+        state = Enum.reduce(frames, state, &handle_client_frame/2)
+        loop(%{state | client_buffer: rest})
 
       {:tcp, ^server, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
@@ -68,39 +68,37 @@ defmodule Hotblock.Proxy do
     end
   end
 
-  # Runs the client's frames through the state machine in order, so a frame
-  # is read with the phase set by the frames before it. Logs every change.
-  defp track_phase(phase, frames, state) do
-    Enum.reduce(frames, phase, fn frame, phase ->
-      case Protocol.decode_command(phase, frame) do
-        {:ok, "hotblock:hello"} ->
-          :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
+  defp handle_client_frame(frame, state) do
+    phase = state.phase
 
-        {:ok, "hotblock:fx title " <> text} when text != "" ->
-          send_title(state.client, text)
+    case Protocol.decode_command(phase, frame) do
+      {:ok, "hotblock:hello"} ->
+        :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
 
-        {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
-          :gen_tcp.send(state.client, Encoder.action_bar(text))
+      {:ok, "hotblock:fx title " <> text} when text != "" ->
+        send_title(state.client, text)
 
-        {:ok, "hotblock:fx weather " <> weather} when weather in ["clear", "rain", "thunder"] ->
-          :gen_tcp.send(state.client, Encoder.weather(String.to_existing_atom(weather)))
+      {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
+        :gen_tcp.send(state.client, Encoder.action_bar(text))
 
-        {:ok, "hotblock:help"} ->
-          :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
+      {:ok, "hotblock:fx weather " <> weather} when weather in ["clear", "rain", "thunder"] ->
+        :gen_tcp.send(state.client, Encoder.weather(String.to_existing_atom(weather)))
 
-        _ ->
-          :gen_tcp.send(state.server, Encoder.encode_frame(frame))
-      end
+      {:ok, "hotblock:help"} ->
+        :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
 
-      PacketLogger.log(phase, :c2s, frame)
-      {:ok, new_phase} = Protocol.next_state(phase, frame)
+      _ ->
+        :gen_tcp.send(state.server, Encoder.encode_frame(frame))
+    end
 
-      if new_phase != phase do
-        Logger.info("#{phase} -> #{new_phase}")
-      end
+    PacketLogger.log(phase, :c2s, frame)
+    {:ok, new_phase} = Protocol.next_state(phase, frame)
 
-      new_phase
-    end)
+    if new_phase != phase do
+      Logger.info("#{phase} -> #{new_phase}")
+    end
+
+    %{state | phase: new_phase}
   end
 
   # The text is "<title>" or "<title> | <subtitle>"
