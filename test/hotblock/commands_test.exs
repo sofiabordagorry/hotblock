@@ -17,6 +17,7 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:hello" in usages
       assert "/hotblock:fx title <title> [| <subtitle>]" in usages
       assert "/hotblock:fx actionbar <text>" in usages
+      assert "/hotblock:fx weather clear|rain|thunder" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -29,6 +30,7 @@ defmodule Hotblock.CommandsTest do
                /hotblock:hello - Says hello from the proxy
                /hotblock:fx title <title> [| <subtitle>] - Shows a title on the screen
                /hotblock:fx actionbar <text> - Shows a text above the hotbar
+               /hotblock:fx weather clear|rain|thunder - Changes the weather only for you
                /hotblock:help - Lists the proxy's commands\
                """
     end

@@ -265,4 +265,52 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
     end
   end
+
+  describe "/hotblock:fx weather" do
+    # chat_command (0x07) with the command "hotblock:fx weather rain"
+    @fx_rain <<0x1A, 0x07, 0x18, "hotblock:fx weather rain">>
+
+    # game_state_change (0x26) start_raining, rain level 1, thunder level 0
+    @rain_reply <<0x06, 0x26, 0x01, 0.0::float-32>> <>
+                  <<0x06, 0x26, 0x07, 1.0::float-32>> <>
+                  <<0x06, 0x26, 0x08, 0.0::float-32>>
+
+    test "does not forward /hotblock:fx weather to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_rain <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "sends the weather packets to the client", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_rain)
+      assert {:ok, @rain_reply} = :gen_tcp.recv(client, byte_size(@rain_reply), 1000)
+    end
+
+    test "only changes the weather of the player who typed it", %{listen: listen} do
+      {client1, _server1} = connect(listen)
+      {client2, _server2} = connect(listen)
+
+      :ok = :gen_tcp.send(client1, @to_play <> @fx_rain)
+
+      assert {:ok, @rain_reply} = :gen_tcp.recv(client1, byte_size(@rain_reply), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client2, 0, 200)
+    end
+
+    test "forwards an unknown weather to the server", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      fx_snow = <<0x1A, 0x07, 0x18, "hotblock:fx weather snow">>
+      :ok = :gen_tcp.send(client, @to_play <> fx_snow)
+
+      expected = @to_play <> fx_snow
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+  end
 end
