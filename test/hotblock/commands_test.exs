@@ -14,8 +14,8 @@ defmodule Hotblock.CommandsTest do
     test "includes every command the proxy handles" do
       usages = Enum.map(Commands.all(), & &1.usage)
 
-      assert "/hello" in usages
-      assert "/fx title <title> [| <subtitle>]" in usages
+      assert "/hotblock:hello" in usages
+      assert "/hotblock:fx title <title> [| <subtitle>]" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -25,8 +25,8 @@ defmodule Hotblock.CommandsTest do
       assert Commands.help_text() ==
                """
                Hotblock commands:
-               /hello - Says hello from the proxy
-               /fx title <title> [| <subtitle>] - Shows a title on the screen
+               /hotblock:hello - Says hello from the proxy
+               /hotblock:fx title <title> [| <subtitle>] - Shows a title on the screen
                /hotblock:help - Lists the proxy's commands\
                """
     end
