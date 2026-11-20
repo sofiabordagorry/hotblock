@@ -4,6 +4,9 @@ defmodule Hotblock.Packets do
   # The client sends it when the player types a command.
   def chat_command, do: 0x07
 
+  # Create, update or remove a boss bar at the top of the screen
+  def boss_bar, do: 0x09
+
   # Change a game state on the client, like the rain or the thunder
   def game_state_change, do: 0x26
 
