@@ -150,11 +150,44 @@ defmodule Hotblock.Protocol.EncoderTest do
       assert <<0x12, 0x09, _uuid::binary-size(16), 0x01>> = Encoder.boss_bar_remove()
     end
 
-    test "uses the same bar as boss_bar_add" do
-      <<_, 0x09, add_uuid::binary-size(16), _::binary>> = Encoder.boss_bar_add("Hi", 1.0, :red)
-      <<_, 0x09, remove_uuid::binary-size(16), _::binary>> = Encoder.boss_bar_remove()
+    test "every action uses the same bar" do
+      frames = [
+        Encoder.boss_bar_add("Hi", 1.0, :red),
+        Encoder.boss_bar_remove(),
+        Encoder.boss_bar_update_health(0.5),
+        Encoder.boss_bar_update_title("Hi"),
+        Encoder.boss_bar_update_style(:red)
+      ]
 
-      assert add_uuid == remove_uuid
+      uuids = for <<_, 0x09, uuid::binary-size(16), _::binary>> <- frames, do: uuid
+
+      assert length(uuids) == 5
+      assert length(Enum.uniq(uuids)) == 1
+    end
+  end
+
+  describe "boss_bar_update_health/1" do
+    test "builds the frame with the update health action and the health" do
+      assert <<0x16, 0x09, _uuid::binary-size(16), 0x02, 0.5::float-32>> =
+               Encoder.boss_bar_update_health(0.5)
+    end
+  end
+
+  describe "boss_bar_update_title/1" do
+    test "builds the frame with the update title action and the title as NBT" do
+      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+      assert <<0x1F, 0x09, _uuid::binary-size(16), 0x03, rest::binary>> =
+               Encoder.boss_bar_update_title("Hi")
+
+      assert rest == nbt
+    end
+  end
+
+  describe "boss_bar_update_style/1" do
+    test "builds the frame with the update style action, the color and no dividers" do
+      assert <<0x14, 0x09, _uuid::binary-size(16), 0x04, 0x02, 0x00>> =
+               Encoder.boss_bar_update_style(:red)
     end
   end
 end
