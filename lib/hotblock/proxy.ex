@@ -79,6 +79,9 @@ defmodule Hotblock.Proxy do
         {:ok, "hotblock:fx title " <> text} when text != "" ->
           send_title(state.client, text)
 
+        {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
+          :gen_tcp.send(state.client, Encoder.action_bar(text))
+
         {:ok, "hotblock:help"} ->
           :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
 

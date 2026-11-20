@@ -6,6 +6,7 @@ defmodule Hotblock.Commands do
       usage: "/hotblock:fx title <title> [| <subtitle>]",
       description: "Shows a title on the screen"
     },
+    %{usage: "/hotblock:fx actionbar <text>", description: "Shows a text above the hotbar"},
     %{usage: "/hotblock:help", description: "Lists the proxy's commands"}
   ]
 
