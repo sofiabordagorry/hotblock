@@ -76,8 +76,7 @@ defmodule Hotblock.Proxy do
           :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
 
         {:ok, "fx title " <> text} when text != "" ->
-          :gen_tcp.send(state.client, Encoder.set_title_time(10, 70, 20))
-          :gen_tcp.send(state.client, Encoder.set_title_text(text))
+          send_title(state.client, text)
 
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
@@ -92,5 +91,18 @@ defmodule Hotblock.Proxy do
 
       new_phase
     end)
+  end
+
+  # The text is "<title>" or "<title> | <subtitle>"
+  defp send_title(client, text) do
+    {title, subtitle} =
+      case String.split(text, " | ", parts: 2) do
+        [title, subtitle] -> {title, subtitle}
+        [title] -> {title, ""}
+      end
+
+    :gen_tcp.send(client, Encoder.set_title_time(10, 70, 20))
+    :gen_tcp.send(client, Encoder.set_title_subtitle(subtitle))
+    :gen_tcp.send(client, Encoder.set_title_text(title))
   end
 end
