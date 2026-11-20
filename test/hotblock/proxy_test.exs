@@ -227,4 +227,42 @@ defmodule Hotblock.ProxyTest do
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
   end
+
+  describe "/hotblock:fx actionbar" do
+    # chat_command (0x07) with the command "hotblock:fx actionbar Hi"
+    @fx_actionbar <<0x1A, 0x07, 0x18, "hotblock:fx actionbar Hi">>
+
+    # action_bar (0x57) with {text: "Hi"} as NBT
+    @actionbar_reply <<0x0E, 0x57, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+    test "does not forward /hotblock:fx actionbar to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_actionbar <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "sends the text in an action_bar packet", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_actionbar)
+
+      assert {:ok, @actionbar_reply} =
+               :gen_tcp.recv(client, byte_size(@actionbar_reply), 1000)
+    end
+
+    test "forwards /hotblock:fx actionbar without text to the server", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      fx_actionbar_empty = <<0x17, 0x07, 0x15, "hotblock:fx actionbar">>
+      :ok = :gen_tcp.send(client, @to_play <> fx_actionbar_empty)
+
+      expected = @to_play <> fx_actionbar_empty
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+  end
 end
