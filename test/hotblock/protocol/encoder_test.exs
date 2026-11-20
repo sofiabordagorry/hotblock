@@ -73,4 +73,12 @@ defmodule Hotblock.Protocol.EncoderTest do
       assert Encoder.set_title_text("Hi") == <<0x0E, 0x72>> <> nbt
     end
   end
+
+  describe "set_title_subtitle/1" do
+    test "builds the frame with the text as NBT" do
+      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+      assert Encoder.set_title_subtitle("Hi") == <<0x0E, 0x70>> <> nbt
+    end
+  end
 end

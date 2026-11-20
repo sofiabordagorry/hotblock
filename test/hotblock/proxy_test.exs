@@ -136,10 +136,16 @@ defmodule Hotblock.ProxyTest do
     # chat_command (0x07) with the command "fx title Hi"
     @fx_title <<0x0D, 0x07, 0x0B, "fx title Hi">>
 
-    # set_title_time (0x73) with fade in 10, stay 70 and fade out 20 ticks,
-    # then set_title_text (0x72) with {text: "Hi"} as NBT
-    @title_reply <<0x0D, 0x73, 10::32, 70::32, 20::32>> <>
-                   <<0x0E, 0x72, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+    # set_title_time (0x73) with fade in 10, stay 70 and fade out 20 ticks
+    @title_time <<0x0D, 0x73, 10::32, 70::32, 20::32>>
+
+    # set_title_subtitle (0x70) with {text: ""} as NBT
+    @empty_subtitle <<0x0C, 0x70, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x00, 0x00>>
+
+    # set_title_text (0x72) with {text: "Hi"} as NBT
+    @title_text <<0x0E, 0x72, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+    @title_reply @title_time <> @empty_subtitle <> @title_text
 
     test "does not forward /fx title to the server in play", %{listen: listen} do
       {client, server} = connect(listen)
@@ -151,7 +157,7 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
     end
 
-    test "sends the title times and then the title text", %{listen: listen} do
+    test "sends the times, an empty subtitle and then the title text", %{listen: listen} do
       {client, _server} = connect(listen)
 
       :ok = :gen_tcp.send(client, @to_play <> @fx_title)
@@ -164,8 +170,22 @@ defmodule Hotblock.ProxyTest do
       :ok = :gen_tcp.send(client, @to_play <> <<0x16, 0x07, 0x14, "fx title Hello world">>)
 
       expected =
-        <<0x0D, 0x73, 10::32, 70::32, 20::32>> <>
+        @title_time <>
+          @empty_subtitle <>
           <<0x17, 0x72, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x0B, "Hello world", 0x00>>
+
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+
+    test "sends the text after \" | \" as the subtitle", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> <<0x15, 0x07, 0x13, "fx title Hi | there">>)
+
+      expected =
+        @title_time <>
+          <<0x11, 0x70, 0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x05, "there", 0x00>> <>
+          @title_text
 
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end

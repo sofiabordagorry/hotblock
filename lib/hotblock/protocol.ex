@@ -76,8 +76,6 @@ defmodule Hotblock.Protocol do
     end
   end
 
-  # True when the frame is a chat_command for /hello (it comes without the slash)
-
   def decode_command(:play, frame) do
     chat_command = Packets.chat_command()
 
