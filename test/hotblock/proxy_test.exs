@@ -201,4 +201,28 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
     end
   end
+
+  describe "/hotblock:help" do
+    # chat_command (0x07) with the command "hotblock:help"
+    @help <<0x0F, 0x07, 0x0D, "hotblock:help">>
+
+    test "does not forward /hotblock:help to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @help <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "replies with the help text in the chat", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @help)
+
+      expected = Hotblock.Protocol.Encoder.system_chat(Hotblock.Commands.help_text())
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+  end
 end
