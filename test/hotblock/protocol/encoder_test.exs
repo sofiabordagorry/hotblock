@@ -123,4 +123,38 @@ defmodule Hotblock.Protocol.EncoderTest do
                game_state(1, 0.0) <> game_state(7, 1.0) <> game_state(8, 1.0)
     end
   end
+
+  describe "boss_bar_add/3" do
+    test "builds the frame with the add action, title, health, color and no dividers or flags" do
+      nbt = <<0x0A, 0x08, 0x00, 0x04, "text", 0x00, 0x02, "Hi", 0x00>>
+
+      assert <<0x26, 0x09, _uuid::binary-size(16), 0x00, rest::binary>> =
+               Encoder.boss_bar_add("Hi", 0.5, :red)
+
+      assert rest == nbt <> <<0.5::float-32, 0x02, 0x00, 0x00>>
+    end
+
+    test "uses the color codes from the protocol" do
+      colors = [pink: 0, blue: 1, red: 2, green: 3, yellow: 4, purple: 5, white: 6]
+
+      for {color, code} <- colors do
+        frame = Encoder.boss_bar_add("Hi", 1.0, color)
+        # The color is followed by dividers and flags, both 0
+        assert binary_part(frame, byte_size(frame) - 3, 3) == <<code, 0x00, 0x00>>
+      end
+    end
+  end
+
+  describe "boss_bar_remove/0" do
+    test "builds the frame with the remove action" do
+      assert <<0x12, 0x09, _uuid::binary-size(16), 0x01>> = Encoder.boss_bar_remove()
+    end
+
+    test "uses the same bar as boss_bar_add" do
+      <<_, 0x09, add_uuid::binary-size(16), _::binary>> = Encoder.boss_bar_add("Hi", 1.0, :red)
+      <<_, 0x09, remove_uuid::binary-size(16), _::binary>> = Encoder.boss_bar_remove()
+
+      assert add_uuid == remove_uuid
+    end
+  end
 end
