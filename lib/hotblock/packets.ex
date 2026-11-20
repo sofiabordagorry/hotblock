@@ -8,10 +8,8 @@ defmodule Hotblock.Packets do
   def set_title_text, do: 0x72
 
   # Set the fade-in, stay, and fade-out times for the title
-  def set_title_times, do: 0x73
+  def set_title_time, do: 0x73
 
   # The server sends it to the client to display a system message in the chat.
   def system_chat, do: 0x79
-
-  def set_title_text, do: 0x72
 end

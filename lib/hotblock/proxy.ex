@@ -71,10 +71,16 @@ defmodule Hotblock.Proxy do
   # is read with the phase set by the frames before it. Logs every change.
   defp track_phase(phase, frames, state) do
     Enum.reduce(frames, phase, fn frame, phase ->
-      if Protocol.decode_command(phase, frame) == "hello" do
-        :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
-      else
-        :gen_tcp.send(state.server, Encoder.encode_frame(frame))
+      case Protocol.decode_command(phase, frame) do
+        {:ok, "hello"} ->
+          :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
+
+        {:ok, "fx title " <> text} when text != "" ->
+          :gen_tcp.send(state.client, Encoder.set_title_time(10, 70, 20))
+          :gen_tcp.send(state.client, Encoder.set_title_text(text))
+
+        _ ->
+          :gen_tcp.send(state.server, Encoder.encode_frame(frame))
       end
 
       PacketLogger.log(phase, :c2s, frame)

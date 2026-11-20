@@ -88,4 +88,6 @@ defmodule Hotblock.Protocol do
       _ -> :error
     end
   end
+
+  def decode_command(_phase, _frame), do: :error
 end
