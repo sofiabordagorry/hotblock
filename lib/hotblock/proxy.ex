@@ -82,6 +82,9 @@ defmodule Hotblock.Proxy do
         {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
           :gen_tcp.send(state.client, Encoder.action_bar(text))
 
+        {:ok, "hotblock:fx weather " <> weather} when weather in ["clear", "rain", "thunder"] ->
+          :gen_tcp.send(state.client, Encoder.weather(String.to_existing_atom(weather)))
+
         {:ok, "hotblock:help"} ->
           :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
 

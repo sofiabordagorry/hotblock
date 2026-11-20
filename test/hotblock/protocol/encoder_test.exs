@@ -89,4 +89,38 @@ defmodule Hotblock.Protocol.EncoderTest do
       assert Encoder.action_bar("Hi") == <<0x0E, 0x57>> <> nbt
     end
   end
+
+  # game_state_change (0x26): the reason as a byte and a 32-bit float value
+  defp game_state(reason, value), do: <<0x06, 0x26, reason, value::float-32>>
+
+  describe "game_state_change/2" do
+    test "builds the frame with the reason and the value" do
+      assert Encoder.game_state_change(:rain_level_change, 1.0) ==
+               <<0x06, 0x26, 0x07, 0x3F, 0x80, 0x00, 0x00>>
+    end
+
+    test "uses the reason codes from minecraft-data" do
+      assert Encoder.game_state_change(:start_raining, 0.0) == game_state(1, 0.0)
+      assert Encoder.game_state_change(:stop_raining, 0.0) == game_state(2, 0.0)
+      assert Encoder.game_state_change(:rain_level_change, 0.5) == game_state(7, 0.5)
+      assert Encoder.game_state_change(:thunder_level_change, 0.5) == game_state(8, 0.5)
+    end
+  end
+
+  describe "weather/1" do
+    test "clear stops the rain and sets both levels to 0" do
+      assert Encoder.weather(:clear) ==
+               game_state(2, 0.0) <> game_state(7, 0.0) <> game_state(8, 0.0)
+    end
+
+    test "rain starts the rain with rain level 1 and thunder level 0" do
+      assert Encoder.weather(:rain) ==
+               game_state(1, 0.0) <> game_state(7, 1.0) <> game_state(8, 0.0)
+    end
+
+    test "thunder starts the rain with both levels at 1" do
+      assert Encoder.weather(:thunder) ==
+               game_state(1, 0.0) <> game_state(7, 1.0) <> game_state(8, 1.0)
+    end
+  end
 end
