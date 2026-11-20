@@ -313,4 +313,76 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
     end
   end
+
+  describe "/hotblock:fx bar" do
+    alias Hotblock.Protocol.Encoder
+
+    # chat_command (0x07) with the command "hotblock:fx bar 50 red Hi"
+    @fx_bar <<0x1B, 0x07, 0x19, "hotblock:fx bar 50 red Hi">>
+
+    # chat_command (0x07) with the command "hotblock:fx bar off"
+    @fx_bar_off <<0x15, 0x07, 0x13, "hotblock:fx bar off">>
+
+    test "does not forward /hotblock:fx bar to the server in play", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_bar <> @fx_bar_off <> @other)
+
+      expected = @to_play <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "adds the bar the first time", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_bar)
+
+      expected = Encoder.boss_bar_add("Hi", 0.5, :red)
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+
+    test "updates the same bar the second time, so there are no duplicates",
+         %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      # chat_command (0x07) with the command "hotblock:fx bar 80 red Hi"
+      fx_bar_80 = <<0x1B, 0x07, 0x19, "hotblock:fx bar 80 red Hi">>
+      :ok = :gen_tcp.send(client, @to_play <> @fx_bar <> fx_bar_80)
+
+      expected = Encoder.boss_bar_add("Hi", 0.5, :red) <> Encoder.boss_bar_update_health(0.8)
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+
+    test "removes the bar with off", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_bar <> @fx_bar_off)
+
+      expected = Encoder.boss_bar_add("Hi", 0.5, :red) <> Encoder.boss_bar_remove()
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+
+    test "does nothing with off when there is no bar", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @fx_bar_off)
+
+      assert {:ok, @to_play} = :gen_tcp.recv(server, byte_size(@to_play), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "forwards an invalid /hotblock:fx bar to the server", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      fx_bar_invalid = <<0x1C, 0x07, 0x1A, "hotblock:fx bar 500 red Hi">>
+      :ok = :gen_tcp.send(client, @to_play <> fx_bar_invalid)
+
+      expected = @to_play <> fx_bar_invalid
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+  end
 end

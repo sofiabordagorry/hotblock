@@ -3,6 +3,10 @@ defmodule Hotblock.Protocol.Encoder do
   alias Hotblock.Packets
   alias Hotblock.Protocol.{NBT, Types}
 
+  # Identifies the proxy's boss bar on the client. Any 16 bytes work, as long
+  # as every boss bar packet uses the same ones.
+  @boss_bar_uuid "hotblockbossbar!"
+
   # A frame is the length of its content as a VarInt, followed by the content
   def encode_frame(frame) do
     Types.encode_varint(byte_size(frame)) <> frame
@@ -55,4 +59,41 @@ defmodule Hotblock.Protocol.Encoder do
       game_state_change(:rain_level_change, rain_level) <>
       game_state_change(:thunder_level_change, thunder_level)
   end
+
+  def boss_bar_add(title, health, color) do
+    bar(
+      0,
+      NBT.encode_text(title) <>
+        <<health::float-32>> <>
+        Types.encode_varint(color_code(color)) <> Types.encode_varint(0) <> <<0>>
+    )
+  end
+
+  def boss_bar_remove() do
+    bar(1, <<>>)
+  end
+
+  def boss_bar_update_health(health) do
+    bar(2, <<health::float-32>>)
+  end
+
+  def boss_bar_update_title(title) do
+    bar(3, NBT.encode_text(title))
+  end
+
+  def boss_bar_update_style(color) do
+    bar(4, Types.encode_varint(color_code(color)) <> Types.encode_varint(0))
+  end
+
+  defp bar(action, fields) do
+    encode_packet(Packets.boss_bar(), @boss_bar_uuid <> Types.encode_varint(action) <> fields)
+  end
+
+  defp color_code(:pink), do: 0
+  defp color_code(:blue), do: 1
+  defp color_code(:red), do: 2
+  defp color_code(:green), do: 3
+  defp color_code(:yellow), do: 4
+  defp color_code(:purple), do: 5
+  defp color_code(:white), do: 6
 end
