@@ -1,7 +1,7 @@
-defmodule Hotblock.BossBarTest do
+defmodule Hotblock.Effects.BossBarTest do
   use ExUnit.Case, async: true
 
-  alias Hotblock.BossBar
+  alias Hotblock.Effects.BossBar
   alias Hotblock.Protocol.Encoder
 
   @bar %{title: "Hi", health: 0.5, color: :red}
