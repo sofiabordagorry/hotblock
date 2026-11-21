@@ -16,7 +16,7 @@ defmodule Hotblock.Proxy do
     loop_acceptor(socket)
   end
 
-  defp loop_acceptor(socket) do
+  def loop_acceptor(socket) do
     {:ok, client} = :gen_tcp.accept(socket)
     Logger.info("Client connected")
 
@@ -24,7 +24,7 @@ defmodule Hotblock.Proxy do
       Task.Supervisor.start_child(Hotblock.ConnectionSupervisor, fn -> serve(client) end)
 
     :gen_tcp.controlling_process(client, pid)
-    loop_acceptor(socket)
+    __MODULE__.loop_acceptor(socket)
   end
 
   defp serve(client) do
@@ -49,17 +49,17 @@ defmodule Hotblock.Proxy do
     })
   end
 
-  defp loop(%{client: client, server: server} = state) do
+  def loop(%{client: client, server: server} = state) do
     receive do
       {:tcp, ^client, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
         state = Enum.reduce(frames, state, &handle_client_frame/2)
-        loop(%{state | client_buffer: rest})
+        __MODULE__.loop(%{state | client_buffer: rest})
 
       {:tcp, ^server, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
         state = Enum.reduce(frames, state, &handle_server_frame/2)
-        loop(%{state | server_buffer: rest})
+        __MODULE__.loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
         Logger.info("Client disconnected")
