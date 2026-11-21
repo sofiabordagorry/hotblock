@@ -247,4 +247,75 @@ defmodule Hotblock.ProtocolTest do
       assert Protocol.decode_position(:play, <<0x1E, 1.5::float-64, 64.0::float-64>>) == :error
     end
   end
+
+  describe "decode_entity_event/2" do
+    # Entity 42 (0x2A as a VarInt) in every frame
+    @uuid :binary.copy(<<0xAB>>, 16)
+
+    test "returns the id, type and position of a spawned entity" do
+      # spawn_entity (0x01): id, UUID, type (150 = zombie), x, y, z,
+      # then velocity, angles and data, which are not read
+      frame =
+        <<0x01, 0x2A>> <>
+          @uuid <>
+          <<0x96, 0x01, 1.5::float-64, 64.0::float-64, -2.25::float-64>> <>
+          <<0x00, 0x00, 0x00, 0x00, 0x00>>
+
+      assert Protocol.decode_entity_event(:play, frame) == {:spawn, 42, 150, {1.5, 64.0, -2.25}}
+    end
+
+    test "returns a relative move in blocks" do
+      # rel_entity_move (0x35): id, dx, dy, dz in 1/4096 of a block, on ground
+      frame = <<0x35, 0x2A, 4096::signed-16, -8192::signed-16, 2048::signed-16, 0x01>>
+
+      assert Protocol.decode_entity_event(:play, frame) == {:move, 42, {1.0, -2.0, 0.5}}
+    end
+
+    test "returns a relative move that also turns the entity" do
+      # entity_move_look (0x36): the same deltas, then yaw, pitch and on ground
+      frame = <<0x36, 0x2A, 4096::signed-16, 0::signed-16, -4096::signed-16, 0x10, 0x20, 0x01>>
+
+      assert Protocol.decode_entity_event(:play, frame) == {:move, 42, {1.0, 0.0, -1.0}}
+    end
+
+    test "returns the new position of sync_entity_position" do
+      # sync_entity_position (0x23): id, x, y, z, velocity, yaw, pitch, on ground
+      frame =
+        <<0x23, 0x2A, 1.5::float-64, 64.0::float-64, -2.25::float-64>> <>
+          <<0.0::float-64, 0.0::float-64, 0.0::float-64, 0.0::float-32, 0.0::float-32, 0x01>>
+
+      assert Protocol.decode_entity_event(:play, frame) == {:teleport, 42, {1.5, 64.0, -2.25}}
+    end
+
+    test "returns the new position of entity_teleport" do
+      # entity_teleport (0x7D): id, x, y, z, velocity, yaw, pitch, flags, on ground
+      frame =
+        <<0x7D, 0x2A, 1.5::float-64, 64.0::float-64, -2.25::float-64>> <>
+          <<0.0::float-64, 0.0::float-64, 0.0::float-64, 0.0::float-32, 0.0::float-32>> <>
+          <<0::32, 0x01>>
+
+      assert Protocol.decode_entity_event(:play, frame) == {:teleport, 42, {1.5, 64.0, -2.25}}
+    end
+
+    test "returns the ids of removed entities" do
+      # entity_destroy (0x4D): how many ids, then the ids (42 and 150)
+      assert Protocol.decode_entity_event(:play, <<0x4D, 0x02, 0x2A, 0x96, 0x01>>) ==
+               {:remove, [42, 150]}
+    end
+
+    test "returns :error for other packets" do
+      assert Protocol.decode_entity_event(:play, <<0x79, 0x00>>) == :error
+    end
+
+    test "returns :error outside play" do
+      frame = <<0x35, 0x2A, 4096::signed-16, -8192::signed-16, 2048::signed-16, 0x01>>
+
+      assert Protocol.decode_entity_event(:configuration, frame) == :error
+    end
+
+    test "returns :error when the frame is cut" do
+      assert Protocol.decode_entity_event(:play, <<0x35, 0x2A, 0x10>>) == :error
+      assert Protocol.decode_entity_event(:play, <<0x4D, 0x02, 0x2A>>) == :error
+    end
+  end
 end
