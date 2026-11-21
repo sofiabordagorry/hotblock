@@ -14,8 +14,16 @@ defmodule Hotblock.Commands do
     %{usage: "/hotblock:fx bar <percent> <color> <text>", description: "Shows a boss bar"},
     %{usage: "/hotblock:fx bar off", description: "Removes the boss bar"},
     %{usage: "/hotblock:fx sound <sound>", description: "Plays a sound where you stand"},
+    %{
+      usage: "/hotblock:watch <entity> [radius]",
+      description: "Warns you when that entity gets close"
+    },
+    %{usage: "/hotblock:unwatch <entity>", description: "Stops warning about that entity"},
     %{usage: "/hotblock:help", description: "Lists the proxy's commands"}
   ]
+
+  # Radius for /hotblock:watch when none is given, in blocks
+  @default_watch_radius 16
 
   @bar_colors %{
     "pink" => :pink,
@@ -43,6 +51,24 @@ defmodule Hotblock.Commands do
       {:ok, percent / 100, color, text}
     else
       _ -> :error
+    end
+  end
+
+  # Parses "<entity> [radius]". The radius is a whole number above 0, and
+  # @default_watch_radius when it is missing.
+  def parse_watch(args) do
+    case String.split(args, " ") do
+      [name] when name != "" ->
+        {:ok, name, @default_watch_radius}
+
+      [name, radius] when name != "" ->
+        case Integer.parse(radius) do
+          {radius, ""} when radius > 0 -> {:ok, name, radius}
+          _ -> :error
+        end
+
+      _ ->
+        :error
     end
   end
 end
