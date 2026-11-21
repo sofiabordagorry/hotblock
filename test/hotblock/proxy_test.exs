@@ -23,6 +23,14 @@ defmodule Hotblock.ProxyTest do
     {client, server}
   end
 
+  # Long-lived loops call themselves as Proxy.loop/1 and
+  # Proxy.loop_acceptor/1, so they jump to the new code after a reload.
+  # For that they have to be public.
+  test "the loops can be called from outside the module" do
+    assert function_exported?(Hotblock.Proxy, :loop, 1)
+    assert function_exported?(Hotblock.Proxy, :loop_acceptor, 1)
+  end
+
   test "forwards frames from client to server", %{listen: listen} do
     {client, server} = connect(listen)
 
