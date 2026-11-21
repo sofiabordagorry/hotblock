@@ -2,7 +2,8 @@ defmodule Hotblock.Effects.SpawnTest do
   use ExUnit.Case, async: true
 
   alias Hotblock.Effects.Spawn
-  alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
+  alias Hotblock.Protocol.Encoder.Serverbound
 
   @player {0.0, 64.0, 0.0}
 
@@ -54,22 +55,23 @@ defmodule Hotblock.Effects.SpawnTest do
   describe "packets/5" do
     test "sends the summon command to the server for a known entity" do
       assert Spawn.packets("zombie", 3, :behind, @player, 0.0) ==
-               {:server, Encoder.chat_command("summon minecraft:zombie 0.00 64.00 -3.00")}
+               {:server, Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 -3.00")}
     end
 
     test "uses the direction" do
       assert Spawn.packets("zombie", 5, :front, @player, 0.0) ==
-               {:server, Encoder.chat_command("summon minecraft:zombie 0.00 64.00 5.00")}
+               {:server, Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 5.00")}
     end
 
     test "replies with a chat error for an unknown entity" do
       assert Spawn.packets("dragon", 3, :behind, @player, 0.0) ==
-               {:client, Encoder.system_chat("Unknown entity: dragon")}
+               {:client, Clientbound.system_chat("Unknown entity: dragon")}
     end
 
     test "replies with a chat error while the position or the yaw are not known" do
       error =
-        {:client, Encoder.system_chat("Your position is not known yet, move a bit and try again")}
+        {:client,
+         Clientbound.system_chat("Your position is not known yet, move a bit and try again")}
 
       assert Spawn.packets("zombie", 3, :behind, nil, 0.0) == error
       assert Spawn.packets("zombie", 3, :behind, @player, nil) == error

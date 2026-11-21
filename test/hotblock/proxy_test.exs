@@ -2,6 +2,8 @@ defmodule Hotblock.ProxyTest do
   # async: false because the proxy listens on a fixed port
   use ExUnit.Case, async: false
 
+  alias Hotblock.Protocol.Encoder.{Clientbound, Serverbound}
+
   @proxy_port 25565
   @opts [:binary, packet: :raw, active: false]
 
@@ -223,7 +225,7 @@ defmodule Hotblock.ProxyTest do
 
       :ok = :gen_tcp.send(client, @to_play <> @help)
 
-      expected = Hotblock.Protocol.Encoder.system_chat(Hotblock.Commands.help_text())
+      expected = Clientbound.system_chat(Hotblock.Commands.help_text())
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
   end
@@ -315,8 +317,6 @@ defmodule Hotblock.ProxyTest do
   end
 
   describe "/hotblock:fx bar" do
-    alias Hotblock.Protocol.Encoder
-
     # chat_command (0x07) with the command "hotblock:fx bar 50 red Hi"
     @fx_bar <<0x1B, 0x07, 0x19, "hotblock:fx bar 50 red Hi">>
 
@@ -338,7 +338,7 @@ defmodule Hotblock.ProxyTest do
 
       :ok = :gen_tcp.send(client, @to_play <> @fx_bar)
 
-      expected = Encoder.boss_bar_add("Hi", 0.5, :red)
+      expected = Clientbound.boss_bar_add("Hi", 0.5, :red)
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
 
@@ -350,7 +350,9 @@ defmodule Hotblock.ProxyTest do
       fx_bar_80 = <<0x1B, 0x07, 0x19, "hotblock:fx bar 80 red Hi">>
       :ok = :gen_tcp.send(client, @to_play <> @fx_bar <> fx_bar_80)
 
-      expected = Encoder.boss_bar_add("Hi", 0.5, :red) <> Encoder.boss_bar_update_health(0.8)
+      expected =
+        Clientbound.boss_bar_add("Hi", 0.5, :red) <> Clientbound.boss_bar_update_health(0.8)
+
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
     end
@@ -360,7 +362,7 @@ defmodule Hotblock.ProxyTest do
 
       :ok = :gen_tcp.send(client, @to_play <> @fx_bar <> @fx_bar_off)
 
-      expected = Encoder.boss_bar_add("Hi", 0.5, :red) <> Encoder.boss_bar_remove()
+      expected = Clientbound.boss_bar_add("Hi", 0.5, :red) <> Clientbound.boss_bar_remove()
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
 
@@ -387,8 +389,6 @@ defmodule Hotblock.ProxyTest do
   end
 
   describe "/hotblock:fx sound" do
-    alias Hotblock.Protocol.Encoder
-
     # position (0x1E) at x 1.5, y 64, z -2.25, on the ground
     @position <<0x1A, 0x1E, 1.5::float-64, 64.0::float-64, -2.25::float-64, 0x01>>
 
@@ -410,7 +410,7 @@ defmodule Hotblock.ProxyTest do
 
       :ok = :gen_tcp.send(client, @to_play <> @position <> @fx_sound)
 
-      expected = Encoder.sound_effect("minecraft:entity.player.levelup", {1.5, 64.0, -2.25})
+      expected = Clientbound.sound_effect("minecraft:entity.player.levelup", {1.5, 64.0, -2.25})
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
 
@@ -421,7 +421,7 @@ defmodule Hotblock.ProxyTest do
       fx_unknown = <<0x27, 0x07, 0x25, "hotblock:fx sound entity.player.dance">>
       :ok = :gen_tcp.send(client, @to_play <> @position <> fx_unknown)
 
-      expected = Encoder.system_chat("Unknown sound: entity.player.dance")
+      expected = Clientbound.system_chat("Unknown sound: entity.player.dance")
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
 
       forwarded = @to_play <> @position
@@ -431,8 +431,6 @@ defmodule Hotblock.ProxyTest do
   end
 
   describe "/hotblock:watch" do
-    alias Hotblock.Protocol.Encoder
-
     # position (0x1E): the player at x 0, y 64, z 0
     @at_origin <<0x1A, 0x1E, 0.0::float-64, 64.0::float-64, 0.0::float-64, 0x01>>
 
@@ -448,7 +446,7 @@ defmodule Hotblock.ProxyTest do
                     <<0x96, 0x01, 3.0::float-64, 64.0::float-64, 0.0::float-64>> <>
                     <<0x00, 0x00, 0x00, 0x00, 0x00>>
 
-    @watching Encoder.system_chat("Watching zombie within 10 blocks")
+    @watching Clientbound.system_chat("Watching zombie within 10 blocks")
 
     test "confirms the watch and does not forward the command", %{listen: listen} do
       {client, server} = connect(listen)
@@ -472,8 +470,8 @@ defmodule Hotblock.ProxyTest do
 
       expected =
         @zombie_spawn <>
-          Encoder.action_bar("zombie 3 blocks away!") <>
-          Encoder.sound_effect("minecraft:block.note_block.pling", {0.0, 64.0, 0.0})
+          Clientbound.action_bar("zombie 3 blocks away!") <>
+          Clientbound.sound_effect("minecraft:block.note_block.pling", {0.0, 64.0, 0.0})
 
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
@@ -483,7 +481,7 @@ defmodule Hotblock.ProxyTest do
 
       :ok = :gen_tcp.send(client, @to_play <> @at_origin <> @watch_zombie <> @unwatch_zombie)
 
-      replies = @watching <> Encoder.system_chat("Stopped watching zombie")
+      replies = @watching <> Clientbound.system_chat("Stopped watching zombie")
       assert {:ok, ^replies} = :gen_tcp.recv(client, byte_size(replies), 1000)
 
       :ok = :gen_tcp.send(server, @zombie_spawn)
@@ -497,14 +495,12 @@ defmodule Hotblock.ProxyTest do
       # chat_command (0x07) with the command "hotblock:watch dragon"
       :ok = :gen_tcp.send(client, @to_play <> <<0x17, 0x07, 0x15, "hotblock:watch dragon">>)
 
-      expected = Encoder.system_chat("Unknown entity: dragon")
+      expected = Clientbound.system_chat("Unknown entity: dragon")
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
   end
 
   describe "/hotblock:spawn" do
-    alias Hotblock.Protocol.Encoder
-
     # position_look (0x1F): the player at x 0, y 64, z 0, facing south (yaw 0)
     @facing_south <<0x22, 0x1F, 0.0::float-64, 64.0::float-64, 0.0::float-64>> <>
                     <<0.0::float-32, 0.0::float-32, 0x01>>
@@ -521,7 +517,7 @@ defmodule Hotblock.ProxyTest do
       expected =
         @to_play <>
           @facing_south <>
-          Encoder.chat_command("summon minecraft:zombie 0.00 64.00 -3.00") <>
+          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 -3.00") <>
           @other
 
       assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
@@ -542,7 +538,7 @@ defmodule Hotblock.ProxyTest do
       expected =
         @to_play <>
           @facing_south <>
-          Encoder.chat_command("summon minecraft:zombie 0.00 64.00 5.00")
+          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 5.00")
 
       assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
@@ -559,7 +555,7 @@ defmodule Hotblock.ProxyTest do
           @to_play <> @facing_south <> <<0x17, 0x07, 0x15, "hotblock:spawn dragon">>
         )
 
-      expected = Encoder.system_chat("Unknown entity: dragon")
+      expected = Clientbound.system_chat("Unknown entity: dragon")
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
 
       forwarded = @to_play <> @facing_south
