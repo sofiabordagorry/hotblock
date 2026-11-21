@@ -1,5 +1,5 @@
 defmodule Hotblock.Protocol do
-  alias Hotblock.Packets
+  alias Hotblock.Packets.Serverbound
   alias Hotblock.Protocol.Types
 
   @max_frame_length 2_097_151
@@ -77,7 +77,7 @@ defmodule Hotblock.Protocol do
   end
 
   def decode_command(:play, frame) do
-    chat_command = Packets.chat_command()
+    chat_command = Serverbound.chat_command()
 
     with {:ok, ^chat_command, rest} <- Types.decode_varint(frame),
          {:ok, command, <<>>} <- Types.decode_string(rest) do
@@ -91,7 +91,7 @@ defmodule Hotblock.Protocol do
 
   def decode_position(:play, frame) do
     with {:ok, id, rest} <- Types.decode_varint(frame),
-         true <- id in [Packets.position(), Packets.position_look()],
+         true <- id in [Serverbound.position(), Serverbound.position_look()],
          {:ok, x, rest} <- Types.decode_double(rest),
          {:ok, y, rest} <- Types.decode_double(rest),
          {:ok, z, _rest} <- Types.decode_double(rest) do

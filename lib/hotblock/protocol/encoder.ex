@@ -1,6 +1,6 @@
 defmodule Hotblock.Protocol.Encoder do
   # Builds the frames the proxy sends: forwarded frames and its own packets
-  alias Hotblock.Packets
+  alias Hotblock.Packets.Clientbound
   alias Hotblock.Protocol.{NBT, Types}
 
   # Identifies the proxy's boss bar on the client. Any 16 bytes work, as long
@@ -20,27 +20,27 @@ defmodule Hotblock.Protocol.Encoder do
   # A chat message from the server. The last byte is the overlay flag:
   # false shows it in the chat instead of the action bar
   def system_chat(text) do
-    encode_packet(Packets.system_chat(), NBT.encode_text(text) <> <<0>>)
+    encode_packet(Clientbound.system_chat(), NBT.encode_text(text) <> <<0>>)
   end
 
   def action_bar(text) do
-    encode_packet(Packets.action_bar(), NBT.encode_text(text))
+    encode_packet(Clientbound.action_bar(), NBT.encode_text(text))
   end
 
   def set_title_subtitle(text) do
-    encode_packet(Packets.set_title_subtitle(), NBT.encode_text(text))
+    encode_packet(Clientbound.set_title_subtitle(), NBT.encode_text(text))
   end
 
   def set_title_text(text) do
-    encode_packet(Packets.set_title_text(), NBT.encode_text(text))
+    encode_packet(Clientbound.set_title_text(), NBT.encode_text(text))
   end
 
   def set_title_time(fade_in, stay, fade_out) do
-    encode_packet(Packets.set_title_time(), <<fade_in::32, stay::32, fade_out::32>>)
+    encode_packet(Clientbound.set_title_time(), <<fade_in::32, stay::32, fade_out::32>>)
   end
 
   def game_state_change(reason, value) do
-    encode_packet(Packets.game_state_change(), <<reason_code(reason), value::float-32>>)
+    encode_packet(Clientbound.game_state_change(), <<reason_code(reason), value::float-32>>)
   end
 
   defp reason_code(:start_raining), do: 1
@@ -87,7 +87,7 @@ defmodule Hotblock.Protocol.Encoder do
 
   def sound_effect(name, {x, y, z}) do
     encode_packet(
-      Packets.sound_effect(),
+      Clientbound.sound_effect(),
       Types.encode_varint(0) <>
         Types.encode_string(name) <>
         <<0>> <>
@@ -98,7 +98,7 @@ defmodule Hotblock.Protocol.Encoder do
   end
 
   defp bar(action, fields) do
-    encode_packet(Packets.boss_bar(), @boss_bar_uuid <> Types.encode_varint(action) <> fields)
+    encode_packet(Clientbound.boss_bar(), @boss_bar_uuid <> Types.encode_varint(action) <> fields)
   end
 
   defp color_code(:pink), do: 0
