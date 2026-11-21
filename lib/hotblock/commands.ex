@@ -13,6 +13,7 @@ defmodule Hotblock.Commands do
     },
     %{usage: "/hotblock:fx bar <percent> <color> <text>", description: "Shows a boss bar"},
     %{usage: "/hotblock:fx bar off", description: "Removes the boss bar"},
+    %{usage: "/hotblock:fx sound <sound>", description: "Plays a sound where you stand"},
     %{usage: "/hotblock:help", description: "Lists the proxy's commands"}
   ]
 
