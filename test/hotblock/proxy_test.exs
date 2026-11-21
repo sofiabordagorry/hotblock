@@ -508,7 +508,7 @@ defmodule Hotblock.ProxyTest do
     # chat_command (0x07) with the command "hotblock:spawn zombie"
     @spawn_zombie <<0x17, 0x07, 0x15, "hotblock:spawn zombie">>
 
-    test "sends a summon command 3 blocks behind the player to the server",
+    test "sends a summon command 3 blocks in front of the player to the server",
          %{listen: listen} do
       {client, server} = connect(listen)
 
@@ -517,7 +517,7 @@ defmodule Hotblock.ProxyTest do
       expected =
         @to_play <>
           @facing_south <>
-          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 -3.00") <>
+          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 3.00") <>
           @other
 
       assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
@@ -528,17 +528,17 @@ defmodule Hotblock.ProxyTest do
     test "uses the distance and direction from the command", %{listen: listen} do
       {client, server} = connect(listen)
 
-      # chat_command (0x07) with the command "hotblock:spawn zombie 5 front"
+      # chat_command (0x07) with the command "hotblock:spawn zombie 5 behind"
       :ok =
         :gen_tcp.send(
           client,
-          @to_play <> @facing_south <> <<0x1F, 0x07, 0x1D, "hotblock:spawn zombie 5 front">>
+          @to_play <> @facing_south <> <<0x20, 0x07, 0x1E, "hotblock:spawn zombie 5 behind">>
         )
 
       expected =
         @to_play <>
           @facing_south <>
-          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 5.00")
+          Serverbound.chat_command("summon minecraft:zombie 0.00 64.00 -5.00")
 
       assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)

@@ -23,7 +23,7 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:fx sound <sound>" in usages
       assert "/hotblock:watch <entity> [radius]" in usages
       assert "/hotblock:unwatch <entity>" in usages
-      assert "/hotblock:spawn <entity> [distance] [behind|front|left|right]" in usages
+      assert "/hotblock:spawn <entity> [distance] [front|behind|left|right]" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -42,7 +42,7 @@ defmodule Hotblock.CommandsTest do
                /hotblock:fx sound <sound> - Plays a sound where you stand
                /hotblock:watch <entity> [radius] - Warns you when that entity gets close
                /hotblock:unwatch <entity> - Stops warning about that entity
-               /hotblock:spawn <entity> [distance] [behind|front|left|right] - Spawns an entity next to you, behind by default
+               /hotblock:spawn <entity> [distance] [front|behind|left|right] - Spawns an entity next to you, in front by default
                /hotblock:help - Lists the proxy's commands\
                """
     end
@@ -121,9 +121,9 @@ defmodule Hotblock.CommandsTest do
       assert Commands.parse_spawn("zombie 5 right") == {:ok, "zombie", 5, :right}
     end
 
-    test "uses a distance of 3 and behind when they are missing" do
-      assert Commands.parse_spawn("zombie") == {:ok, "zombie", 3, :behind}
-      assert Commands.parse_spawn("zombie 5") == {:ok, "zombie", 5, :behind}
+    test "uses a distance of 3 and front when they are missing" do
+      assert Commands.parse_spawn("zombie") == {:ok, "zombie", 3, :front}
+      assert Commands.parse_spawn("zombie 5") == {:ok, "zombie", 5, :front}
       assert Commands.parse_spawn("zombie left") == {:ok, "zombie", 3, :left}
     end
 
