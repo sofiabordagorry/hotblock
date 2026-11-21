@@ -85,6 +85,18 @@ defmodule Hotblock.Protocol.Encoder do
     bar(4, Types.encode_varint(color_code(color)) <> Types.encode_varint(0))
   end
 
+  def sound_effect(name, {x, y, z}) do
+    encode_packet(
+      Packets.sound_effect(),
+      Types.encode_varint(0) <>
+        Types.encode_string(name) <>
+        <<0>> <>
+        Types.encode_varint(0) <>
+        <<trunc(x * 8)::signed-32, trunc(y * 8)::signed-32, trunc(z * 8)::signed-32>> <>
+        <<1.0::float-32, 1.0::float-32>> <> <<0::64>>
+    )
+  end
+
   defp bar(action, fields) do
     encode_packet(Packets.boss_bar(), @boss_bar_uuid <> Types.encode_varint(action) <> fields)
   end
