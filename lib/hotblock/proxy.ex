@@ -1,6 +1,7 @@
 defmodule Hotblock.Proxy do
   alias Hotblock.Commands
   alias Hotblock.Effects.BossBar
+  alias Hotblock.Effects.Sound
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
@@ -38,7 +39,8 @@ defmodule Hotblock.Proxy do
       client_buffer: <<>>,
       server_buffer: <<>>,
       phase: :handshaking,
-      boss_bar: nil
+      boss_bar: nil,
+      position: nil
     })
   end
 
@@ -107,9 +109,19 @@ defmodule Hotblock.Proxy do
           :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
           state
 
+        {:ok, "hotblock:fx sound " <> name} ->
+          :gen_tcp.send(state.client, Sound.packets(name, state.position))
+          state
+
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
           state
+      end
+
+    state =
+      case Protocol.decode_position(phase, frame) do
+        {:ok, position} -> %{state | position: position}
+        :error -> state
       end
 
     PacketLogger.log(phase, :c2s, frame)

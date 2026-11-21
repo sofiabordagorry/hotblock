@@ -20,6 +20,7 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:fx weather clear|rain|thunder" in usages
       assert "/hotblock:fx bar <percent> <color> <text>" in usages
       assert "/hotblock:fx bar off" in usages
+      assert "/hotblock:fx sound <sound>" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -35,6 +36,7 @@ defmodule Hotblock.CommandsTest do
                /hotblock:fx weather clear|rain|thunder - Changes the weather only for you
                /hotblock:fx bar <percent> <color> <text> - Shows a boss bar
                /hotblock:fx bar off - Removes the boss bar
+               /hotblock:fx sound <sound> - Plays a sound where you stand
                /hotblock:help - Lists the proxy's commands\
                """
     end

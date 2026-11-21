@@ -190,4 +190,31 @@ defmodule Hotblock.Protocol.EncoderTest do
                Encoder.boss_bar_update_style(:red)
     end
   end
+
+  describe "sound_effect/2" do
+    test "builds the frame with the sound by name, the category and the position" do
+      name = "minecraft:entity.player.levelup"
+
+      fields =
+        <<0x00>> <>
+          <<0x1F>> <>
+          name <>
+          <<0x00>> <>
+          <<0x00>> <>
+          <<12::signed-32, 512::signed-32, -18::signed-32>> <>
+          <<1.0::float-32, 1.0::float-32>> <>
+          <<0::64>>
+
+      assert Encoder.sound_effect(name, {1.5, 64.0, -2.25}) == <<0x40, 0x75>> <> fields
+    end
+
+    test "stores each coordinate multiplied by 8, without the decimals" do
+      frame = Encoder.sound_effect("minecraft:block.note_block.pling", {10.9, -0.2, 100.0})
+
+      # The coordinates are followed by volume, pitch and seed (16 bytes)
+      coordinates = binary_part(frame, byte_size(frame) - 28, 12)
+
+      assert coordinates == <<87::signed-32, -1::signed-32, 800::signed-32>>
+    end
+  end
 end

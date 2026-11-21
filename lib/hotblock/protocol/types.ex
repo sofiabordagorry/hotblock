@@ -64,4 +64,10 @@ defmodule Hotblock.Protocol.Types do
   def encode_varint(value) do
     <<(value &&& 0x7F) ||| 0x80>> <> encode_varint(value >>> 7)
   end
+
+  def decode_double(<<value::float-64, rest::binary>>) do
+    {:ok, value, rest}
+  end
+
+  def decode_double(_binay), do: :error
 end
