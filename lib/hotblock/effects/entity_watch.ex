@@ -1,6 +1,6 @@
 defmodule Hotblock.Effects.EntityWatch do
   alias Hotblock.Entities
-  alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
 
   # entities: %{id => %{type: "zombie", position: {x, y, z}}}
   # watches: %{"zombie" => 10}, the name and the radius
@@ -56,9 +56,9 @@ defmodule Hotblock.Effects.EntityWatch do
   def watch(watch, name, radius) do
     if Entities.known?(name) do
       watch = %{watch | watches: Map.put(watch.watches, name, radius)}
-      {Encoder.system_chat("Watching #{name} within #{radius} blocks"), watch}
+      {Clientbound.system_chat("Watching #{name} within #{radius} blocks"), watch}
     else
-      {Encoder.system_chat("Unknown entity: #{name}"), watch}
+      {Clientbound.system_chat("Unknown entity: #{name}"), watch}
     end
   end
 
@@ -72,9 +72,9 @@ defmodule Hotblock.Effects.EntityWatch do
           last_alerts: Map.delete(watch.last_alerts, name)
       }
 
-      {Encoder.system_chat("Stopped watching #{name}"), watch}
+      {Clientbound.system_chat("Stopped watching #{name}"), watch}
     else
-      {Encoder.system_chat("You are not watching #{name}"), watch}
+      {Clientbound.system_chat("You are not watching #{name}"), watch}
     end
   end
 
@@ -123,7 +123,7 @@ defmodule Hotblock.Effects.EntityWatch do
     blocks = round(distance)
     unit = if blocks == 1, do: "block", else: "blocks"
 
-    Encoder.action_bar("#{name} #{blocks} #{unit} away!") <>
-      Encoder.sound_effect("minecraft:block.note_block.pling", player)
+    Clientbound.action_bar("#{name} #{blocks} #{unit} away!") <>
+      Clientbound.sound_effect("minecraft:block.note_block.pling", player)
   end
 end

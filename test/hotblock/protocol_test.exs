@@ -318,4 +318,38 @@ defmodule Hotblock.ProtocolTest do
       assert Protocol.decode_entity_event(:play, <<0x4D, 0x02, 0x2A>>) == :error
     end
   end
+
+  describe "decode_yaw/2" do
+    # position_look (0x1F): x, y, z, then yaw and pitch as 32-bit floats, then flags
+    test "returns the yaw of a position_look packet in play" do
+      frame =
+        <<0x1F, 1.5::float-64, 64.0::float-64, -2.25::float-64, 90.0::float-32, 30.0::float-32,
+          0x00>>
+
+      assert Protocol.decode_yaw(:play, frame) == {:ok, 90.0}
+    end
+
+    # look (0x20): only yaw, pitch and flags
+    test "returns the yaw of a look packet in play" do
+      frame = <<0x20, -45.0::float-32, 30.0::float-32, 0x00>>
+
+      assert Protocol.decode_yaw(:play, frame) == {:ok, -45.0}
+    end
+
+    test "returns :error for packets without a rotation" do
+      # position (0x1E): x, y, z and flags
+      frame = <<0x1E, 1.5::float-64, 64.0::float-64, -2.25::float-64, 0x01>>
+
+      assert Protocol.decode_yaw(:play, frame) == :error
+    end
+
+    test "returns :error outside play" do
+      assert Protocol.decode_yaw(:configuration, <<0x20, -45.0::float-32, 30.0::float-32, 0x00>>) ==
+               :error
+    end
+
+    test "returns :error when the yaw is cut" do
+      assert Protocol.decode_yaw(:play, <<0x20, 0x00, 0x00>>) == :error
+    end
+  end
 end

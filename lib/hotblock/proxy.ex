@@ -3,9 +3,11 @@ defmodule Hotblock.Proxy do
   alias Hotblock.Effects.BossBar
   alias Hotblock.Effects.EntityWatch
   alias Hotblock.Effects.Sound
+  alias Hotblock.Effects.Spawn
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
   require Logger
 
   def accept(port) do
@@ -42,7 +44,8 @@ defmodule Hotblock.Proxy do
       phase: :handshaking,
       boss_bar: nil,
       position: nil,
-      entity_watch: EntityWatch.new()
+      entity_watch: EntityWatch.new(),
+      yaw: nil
     })
   end
 
@@ -90,7 +93,7 @@ defmodule Hotblock.Proxy do
     state =
       case Protocol.decode_command(phase, frame) do
         {:ok, "hotblock:hello"} ->
-          :gen_tcp.send(state.client, Encoder.system_chat("Hello from Elixir!"))
+          :gen_tcp.send(state.client, Clientbound.system_chat("Hello from Elixir!"))
           state
 
         {:ok, "hotblock:fx title " <> text} when text != "" ->
@@ -98,11 +101,11 @@ defmodule Hotblock.Proxy do
           state
 
         {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
-          :gen_tcp.send(state.client, Encoder.action_bar(text))
+          :gen_tcp.send(state.client, Clientbound.action_bar(text))
           state
 
         {:ok, "hotblock:fx weather " <> weather} when weather in ["clear", "rain", "thunder"] ->
-          :gen_tcp.send(state.client, Encoder.weather(String.to_existing_atom(weather)))
+          :gen_tcp.send(state.client, Clientbound.weather(String.to_existing_atom(weather)))
           state
 
         {:ok, "hotblock:fx bar off"} ->
@@ -136,12 +139,30 @@ defmodule Hotblock.Proxy do
           %{state | entity_watch: entity_watch}
 
         {:ok, "hotblock:help"} ->
-          :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
+          :gen_tcp.send(state.client, Clientbound.system_chat(Commands.help_text()))
           state
 
         {:ok, "hotblock:fx sound " <> name} ->
           :gen_tcp.send(state.client, Sound.packets(name, state.position))
           state
+
+        {:ok, "hotblock:spawn " <> args} ->
+          case Commands.parse_spawn(args) do
+            {:ok, name, distance, direction} ->
+              case Spawn.packets(name, distance, direction, state.position, state.yaw) do
+                {:client, packet} ->
+                  :gen_tcp.send(state.client, packet)
+                  state
+
+                {:server, packet} ->
+                  :gen_tcp.send(state.server, packet)
+                  state
+              end
+
+            :error ->
+              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
+              state
+          end
 
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
@@ -151,6 +172,12 @@ defmodule Hotblock.Proxy do
     state =
       case Protocol.decode_position(phase, frame) do
         {:ok, position} -> send_alerts(%{state | position: position})
+        :error -> state
+      end
+
+    state =
+      case Protocol.decode_yaw(phase, frame) do
+        {:ok, yaw} -> %{state | yaw: yaw}
         :error -> state
       end
 
@@ -172,9 +199,9 @@ defmodule Hotblock.Proxy do
         [title] -> {title, ""}
       end
 
-    :gen_tcp.send(client, Encoder.set_title_time(10, 70, 20))
-    :gen_tcp.send(client, Encoder.set_title_subtitle(subtitle))
-    :gen_tcp.send(client, Encoder.set_title_text(title))
+    :gen_tcp.send(client, Clientbound.set_title_time(10, 70, 20))
+    :gen_tcp.send(client, Clientbound.set_title_subtitle(subtitle))
+    :gen_tcp.send(client, Clientbound.set_title_text(title))
   end
 
   # Sends what changed from the current bar to the new one and remembers it

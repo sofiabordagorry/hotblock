@@ -69,5 +69,11 @@ defmodule Hotblock.Protocol.Types do
     {:ok, value, rest}
   end
 
-  def decode_double(_binay), do: :error
+  def decode_double(_binary), do: :error
+
+  def decode_float(<<value::float-32, rest::binary>>) do
+    {:ok, value, rest}
+  end
+
+  def decode_float(_binary), do: :error
 end

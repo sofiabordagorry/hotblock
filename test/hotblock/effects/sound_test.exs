@@ -2,7 +2,7 @@ defmodule Hotblock.Effects.SoundTest do
   use ExUnit.Case, async: true
 
   alias Hotblock.Effects.Sound
-  alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
 
   describe "known?/1" do
     test "is true for sounds in minecraft-data" do
@@ -23,17 +23,17 @@ defmodule Hotblock.Effects.SoundTest do
 
     test "plays a known sound at the position" do
       assert Sound.packets("entity.player.levelup", @position) ==
-               Encoder.sound_effect("minecraft:entity.player.levelup", @position)
+               Clientbound.sound_effect("minecraft:entity.player.levelup", @position)
     end
 
     test "replies with a chat error for an unknown sound" do
       assert Sound.packets("entity.player.dance", @position) ==
-               Encoder.system_chat("Unknown sound: entity.player.dance")
+               Clientbound.system_chat("Unknown sound: entity.player.dance")
     end
 
     test "replies with a chat error when the position is not known yet" do
       assert Sound.packets("entity.player.levelup", nil) ==
-               Encoder.system_chat("Your position is not known yet, move a bit and try again")
+               Clientbound.system_chat("Your position is not known yet, move a bit and try again")
     end
   end
 end

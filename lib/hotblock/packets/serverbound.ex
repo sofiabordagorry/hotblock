@@ -10,4 +10,7 @@ defmodule Hotblock.Packets.Serverbound do
 
   # The player's position and rotation
   def position_look, do: 0x1F
+
+  # The player's rotation, without the position
+  def look, do: 0x20
 end

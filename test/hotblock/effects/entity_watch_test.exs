@@ -2,7 +2,7 @@ defmodule Hotblock.Effects.EntityWatchTest do
   use ExUnit.Case, async: true
 
   alias Hotblock.Effects.EntityWatch
-  alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
 
   @player {0.0, 64.0, 0.0}
 
@@ -14,7 +14,8 @@ defmodule Hotblock.Effects.EntityWatchTest do
   end
 
   defp alert(text) do
-    Encoder.action_bar(text) <> Encoder.sound_effect("minecraft:block.note_block.pling", @player)
+    Clientbound.action_bar(text) <>
+      Clientbound.sound_effect("minecraft:block.note_block.pling", @player)
   end
 
   describe "track/2" do
@@ -70,14 +71,14 @@ defmodule Hotblock.Effects.EntityWatchTest do
     test "starts watching a known entity and confirms it" do
       {reply, watch} = EntityWatch.watch(EntityWatch.new(), "zombie", 10)
 
-      assert reply == Encoder.system_chat("Watching zombie within 10 blocks")
+      assert reply == Clientbound.system_chat("Watching zombie within 10 blocks")
       assert watch.watches == %{"zombie" => 10}
     end
 
     test "replies with a chat error for an unknown entity" do
       {reply, watch} = EntityWatch.watch(EntityWatch.new(), "dragon", 10)
 
-      assert reply == Encoder.system_chat("Unknown entity: dragon")
+      assert reply == Clientbound.system_chat("Unknown entity: dragon")
       assert watch == EntityWatch.new()
     end
   end
@@ -87,14 +88,14 @@ defmodule Hotblock.Effects.EntityWatchTest do
       {_reply, watch} = EntityWatch.watch(EntityWatch.new(), "zombie", 10)
       {reply, watch} = EntityWatch.unwatch(watch, "zombie")
 
-      assert reply == Encoder.system_chat("Stopped watching zombie")
+      assert reply == Clientbound.system_chat("Stopped watching zombie")
       assert watch.watches == %{}
     end
 
     test "says so when the entity was not being watched" do
       {reply, _watch} = EntityWatch.unwatch(EntityWatch.new(), "zombie")
 
-      assert reply == Encoder.system_chat("You are not watching zombie")
+      assert reply == Clientbound.system_chat("You are not watching zombie")
     end
   end
 
