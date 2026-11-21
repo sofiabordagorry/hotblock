@@ -2,11 +2,26 @@ defmodule Hotblock.Packets.Clientbound do
   # IDs of the play packets the server sends to the client.
   # From minecraft-data, protocol 775 (26.1.2).
 
+  # A new entity appears: its id, UUID, type and position
+  def spawn_entity, do: 0x01
+
   # Create, update or remove a boss bar at the top of the screen
   def boss_bar, do: 0x09
 
+  # The exact position of an entity, sent from time to time to fix small errors
+  def sync_entity_position, do: 0x23
+
   # Change a game state on the client, like the rain or the thunder
   def game_state_change, do: 0x26
+
+  # An entity moved a little, given as a change in position
+  def rel_entity_move, do: 0x35
+
+  # The same, but the entity also turned
+  def entity_move_look, do: 0x36
+
+  # Entities that are gone, by id
+  def entity_destroy, do: 0x4D
 
   # Show a text above the hotbar
   def action_bar, do: 0x57
@@ -25,4 +40,7 @@ defmodule Hotblock.Packets.Clientbound do
 
   # Show a system message in the chat
   def system_chat, do: 0x79
+
+  # An entity moved to a new position
+  def entity_teleport, do: 0x7D
 end
