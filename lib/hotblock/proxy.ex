@@ -3,6 +3,7 @@ defmodule Hotblock.Proxy do
   alias Hotblock.Effects.BossBar
   alias Hotblock.Effects.EntityWatch
   alias Hotblock.Effects.Sound
+  alias Hotblock.Effects.Spawn
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
@@ -43,7 +44,8 @@ defmodule Hotblock.Proxy do
       phase: :handshaking,
       boss_bar: nil,
       position: nil,
-      entity_watch: EntityWatch.new()
+      entity_watch: EntityWatch.new(),
+      yaw: nil
     })
   end
 
@@ -144,6 +146,24 @@ defmodule Hotblock.Proxy do
           :gen_tcp.send(state.client, Sound.packets(name, state.position))
           state
 
+        {:ok, "hotblock:spawn " <> args} ->
+          case Commands.parse_spawn(args) do
+            {:ok, name, distance, direction} ->
+              case Spawn.packets(name, distance, direction, state.position, state.yaw) do
+                {:client, packet} ->
+                  :gen_tcp.send(state.client, packet)
+                  state
+
+                {:server, packet} ->
+                  :gen_tcp.send(state.server, packet)
+                  state
+              end
+
+            :error ->
+              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
+              state
+          end
+
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
           state
@@ -152,6 +172,12 @@ defmodule Hotblock.Proxy do
     state =
       case Protocol.decode_position(phase, frame) do
         {:ok, position} -> send_alerts(%{state | position: position})
+        :error -> state
+      end
+
+    state =
+      case Protocol.decode_yaw(phase, frame) do
+        {:ok, yaw} -> %{state | yaw: yaw}
         :error -> state
       end
 
