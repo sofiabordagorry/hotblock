@@ -1,13 +1,9 @@
 defmodule Hotblock.Proxy do
-  alias Hotblock.Commands
-  alias Hotblock.Effects.BossBar
   alias Hotblock.Effects.EntityWatch
-  alias Hotblock.Effects.Sound
-  alias Hotblock.Effects.Spawn
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
-  alias Hotblock.Protocol.Encoder.Clientbound
+  alias Hotblock.Rules
   require Logger
 
   def accept(port) do
@@ -91,79 +87,15 @@ defmodule Hotblock.Proxy do
     phase = state.phase
 
     state =
-      case Protocol.decode_command(phase, frame) do
-        {:ok, "hotblock:hello"} ->
-          :gen_tcp.send(state.client, Clientbound.system_chat("Hello from Elixir!"))
-          state
+      with {:ok, command} <- Protocol.decode_command(phase, frame),
+           {:ok, sends, state} <- Rules.handle_command(command, state) do
+        Enum.each(sends, fn
+          {:client, packet} -> :gen_tcp.send(state.client, packet)
+          {:server, packet} -> :gen_tcp.send(state.server, packet)
+        end)
 
-        {:ok, "hotblock:fx title " <> text} when text != "" ->
-          send_title(state.client, text)
-          state
-
-        {:ok, "hotblock:fx actionbar " <> text} when text != "" ->
-          :gen_tcp.send(state.client, Clientbound.action_bar(text))
-          state
-
-        {:ok, "hotblock:fx weather " <> weather} when weather in ["clear", "rain", "thunder"] ->
-          :gen_tcp.send(state.client, Clientbound.weather(String.to_existing_atom(weather)))
-          state
-
-        {:ok, "hotblock:fx bar off"} ->
-          set_boss_bar(state, nil)
-
-        {:ok, "hotblock:fx bar " <> args} ->
-          case Commands.parse_bar(args) do
-            {:ok, health, color, text} ->
-              set_boss_bar(state, %{title: text, health: health, color: color})
-
-            :error ->
-              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
-              state
-          end
-
-        {:ok, "hotblock:watch " <> args} ->
-          case Commands.parse_watch(args) do
-            {:ok, name, radius} ->
-              {reply, entity_watch} = EntityWatch.watch(state.entity_watch, name, radius)
-              :gen_tcp.send(state.client, reply)
-              %{state | entity_watch: entity_watch}
-
-            :error ->
-              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
-              state
-          end
-
-        {:ok, "hotblock:unwatch " <> name} when name != "" ->
-          {reply, entity_watch} = EntityWatch.unwatch(state.entity_watch, name)
-          :gen_tcp.send(state.client, reply)
-          %{state | entity_watch: entity_watch}
-
-        {:ok, "hotblock:help"} ->
-          :gen_tcp.send(state.client, Clientbound.system_chat(Commands.help_text()))
-          state
-
-        {:ok, "hotblock:fx sound " <> name} ->
-          :gen_tcp.send(state.client, Sound.packets(name, state.position))
-          state
-
-        {:ok, "hotblock:spawn " <> args} ->
-          case Commands.parse_spawn(args) do
-            {:ok, name, distance, direction} ->
-              case Spawn.packets(name, distance, direction, state.position, state.yaw) do
-                {:client, packet} ->
-                  :gen_tcp.send(state.client, packet)
-                  state
-
-                {:server, packet} ->
-                  :gen_tcp.send(state.server, packet)
-                  state
-              end
-
-            :error ->
-              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
-              state
-          end
-
+        state
+      else
         _ ->
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
           state
@@ -189,25 +121,6 @@ defmodule Hotblock.Proxy do
     end
 
     %{state | phase: new_phase}
-  end
-
-  # The text is "<title>" or "<title> | <subtitle>"
-  defp send_title(client, text) do
-    {title, subtitle} =
-      case String.split(text, " | ", parts: 2) do
-        [title, subtitle] -> {title, subtitle}
-        [title] -> {title, ""}
-      end
-
-    :gen_tcp.send(client, Clientbound.set_title_time(10, 70, 20))
-    :gen_tcp.send(client, Clientbound.set_title_subtitle(subtitle))
-    :gen_tcp.send(client, Clientbound.set_title_text(title))
-  end
-
-  # Sends what changed from the current bar to the new one and remembers it
-  defp set_boss_bar(state, bar) do
-    :gen_tcp.send(state.client, BossBar.packets(state.boss_bar, bar))
-    %{state | boss_bar: bar}
   end
 
   # Sends the alerts for watched entities that are close and keeps the
