@@ -21,6 +21,8 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:fx bar <percent> <color> <text>" in usages
       assert "/hotblock:fx bar off" in usages
       assert "/hotblock:fx sound <sound>" in usages
+      assert "/hotblock:watch <entity> [radius]" in usages
+      assert "/hotblock:unwatch <entity>" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -37,6 +39,8 @@ defmodule Hotblock.CommandsTest do
                /hotblock:fx bar <percent> <color> <text> - Shows a boss bar
                /hotblock:fx bar off - Removes the boss bar
                /hotblock:fx sound <sound> - Plays a sound where you stand
+               /hotblock:watch <entity> [radius] - Warns you when that entity gets close
+               /hotblock:unwatch <entity> - Stops warning about that entity
                /hotblock:help - Lists the proxy's commands\
                """
     end
@@ -82,6 +86,28 @@ defmodule Hotblock.CommandsTest do
       assert Commands.parse_bar("50 red ") == :error
       assert Commands.parse_bar("50") == :error
       assert Commands.parse_bar("") == :error
+    end
+  end
+
+  describe "parse_watch/1" do
+    test "returns the entity and the radius" do
+      assert Commands.parse_watch("zombie 10") == {:ok, "zombie", 10}
+    end
+
+    test "uses a radius of 16 when there is none" do
+      assert Commands.parse_watch("zombie") == {:ok, "zombie", 16}
+    end
+
+    test "returns :error when the radius is not a whole number above 0" do
+      assert Commands.parse_watch("zombie 0") == :error
+      assert Commands.parse_watch("zombie -5") == :error
+      assert Commands.parse_watch("zombie 10.5") == :error
+      assert Commands.parse_watch("zombie ten") == :error
+    end
+
+    test "returns :error when there is no entity or there are extra words" do
+      assert Commands.parse_watch("") == :error
+      assert Commands.parse_watch("zombie 10 now") == :error
     end
   end
 end

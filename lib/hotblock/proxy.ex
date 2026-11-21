@@ -1,6 +1,7 @@
 defmodule Hotblock.Proxy do
   alias Hotblock.Commands
   alias Hotblock.Effects.BossBar
+  alias Hotblock.Effects.EntityWatch
   alias Hotblock.Effects.Sound
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
@@ -40,7 +41,8 @@ defmodule Hotblock.Proxy do
       server_buffer: <<>>,
       phase: :handshaking,
       boss_bar: nil,
-      position: nil
+      position: nil,
+      entity_watch: EntityWatch.new()
     })
   end
 
@@ -53,12 +55,7 @@ defmodule Hotblock.Proxy do
 
       {:tcp, ^server, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
-
-        Enum.each(frames, fn frame ->
-          PacketLogger.log(state.phase, :s2c, frame)
-          :gen_tcp.send(client, Encoder.encode_frame(frame))
-        end)
-
+        state = Enum.reduce(frames, state, &handle_server_frame/2)
         loop(%{state | server_buffer: rest})
 
       {:tcp_closed, ^client} ->
@@ -68,6 +65,22 @@ defmodule Hotblock.Proxy do
       {:tcp_closed, ^server} ->
         Logger.info("Server disconnected")
         :gen_tcp.close(client)
+    end
+  end
+
+  # Handles one frame from the server: logs it and forwards it to the client.
+  # Entity packets also update the entity watch, which can send alerts.
+  defp handle_server_frame(frame, state) do
+    PacketLogger.log(state.phase, :s2c, frame)
+    :gen_tcp.send(state.client, Encoder.encode_frame(frame))
+
+    case Protocol.decode_entity_event(state.phase, frame) do
+      :error ->
+        state
+
+      event ->
+        state = %{state | entity_watch: EntityWatch.track(state.entity_watch, event)}
+        send_alerts(state)
     end
   end
 
@@ -105,6 +118,23 @@ defmodule Hotblock.Proxy do
               state
           end
 
+        {:ok, "hotblock:watch " <> args} ->
+          case Commands.parse_watch(args) do
+            {:ok, name, radius} ->
+              {reply, entity_watch} = EntityWatch.watch(state.entity_watch, name, radius)
+              :gen_tcp.send(state.client, reply)
+              %{state | entity_watch: entity_watch}
+
+            :error ->
+              :gen_tcp.send(state.server, Encoder.encode_frame(frame))
+              state
+          end
+
+        {:ok, "hotblock:unwatch " <> name} when name != "" ->
+          {reply, entity_watch} = EntityWatch.unwatch(state.entity_watch, name)
+          :gen_tcp.send(state.client, reply)
+          %{state | entity_watch: entity_watch}
+
         {:ok, "hotblock:help"} ->
           :gen_tcp.send(state.client, Encoder.system_chat(Commands.help_text()))
           state
@@ -120,7 +150,7 @@ defmodule Hotblock.Proxy do
 
     state =
       case Protocol.decode_position(phase, frame) do
-        {:ok, position} -> %{state | position: position}
+        {:ok, position} -> send_alerts(%{state | position: position})
         :error -> state
       end
 
@@ -151,5 +181,14 @@ defmodule Hotblock.Proxy do
   defp set_boss_bar(state, bar) do
     :gen_tcp.send(state.client, BossBar.packets(state.boss_bar, bar))
     %{state | boss_bar: bar}
+  end
+
+  # Sends the alerts for watched entities that are close and keeps the
+  # cooldowns. Runs when an entity or the player moves.
+  defp send_alerts(state) do
+    now = System.monotonic_time(:millisecond)
+    {packets, entity_watch} = EntityWatch.alerts(state.entity_watch, state.position, now)
+    :gen_tcp.send(state.client, packets)
+    %{state | entity_watch: entity_watch}
   end
 end

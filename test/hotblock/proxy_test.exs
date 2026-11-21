@@ -429,4 +429,76 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
     end
   end
+
+  describe "/hotblock:watch" do
+    alias Hotblock.Protocol.Encoder
+
+    # position (0x1E): the player at x 0, y 64, z 0
+    @at_origin <<0x1A, 0x1E, 0.0::float-64, 64.0::float-64, 0.0::float-64, 0x01>>
+
+    # chat_command (0x07) with the command "hotblock:watch zombie 10"
+    @watch_zombie <<0x1A, 0x07, 0x18, "hotblock:watch zombie 10">>
+
+    # chat_command (0x07) with the command "hotblock:unwatch zombie"
+    @unwatch_zombie <<0x19, 0x07, 0x17, "hotblock:unwatch zombie">>
+
+    # spawn_entity (0x01): entity 42, a zombie (type 150), 3 blocks from the player
+    @zombie_spawn <<0x31, 0x01, 0x2A>> <>
+                    :binary.copy(<<0xAB>>, 16) <>
+                    <<0x96, 0x01, 3.0::float-64, 64.0::float-64, 0.0::float-64>> <>
+                    <<0x00, 0x00, 0x00, 0x00, 0x00>>
+
+    @watching Encoder.system_chat("Watching zombie within 10 blocks")
+
+    test "confirms the watch and does not forward the command", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @at_origin <> @watch_zombie <> @other)
+
+      assert {:ok, @watching} = :gen_tcp.recv(client, byte_size(@watching), 1000)
+
+      expected = @to_play <> @at_origin <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "warns when a watched entity spawns within the radius", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @at_origin <> @watch_zombie)
+      assert {:ok, @watching} = :gen_tcp.recv(client, byte_size(@watching), 1000)
+
+      :ok = :gen_tcp.send(server, @zombie_spawn)
+
+      expected =
+        @zombie_spawn <>
+          Encoder.action_bar("zombie 3 blocks away!") <>
+          Encoder.sound_effect("minecraft:block.note_block.pling", {0.0, 64.0, 0.0})
+
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+
+    test "stops warning after /hotblock:unwatch", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @at_origin <> @watch_zombie <> @unwatch_zombie)
+
+      replies = @watching <> Encoder.system_chat("Stopped watching zombie")
+      assert {:ok, ^replies} = :gen_tcp.recv(client, byte_size(replies), 1000)
+
+      :ok = :gen_tcp.send(server, @zombie_spawn)
+      assert {:ok, @zombie_spawn} = :gen_tcp.recv(client, byte_size(@zombie_spawn), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+
+    test "replies with a chat error for an unknown entity", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      # chat_command (0x07) with the command "hotblock:watch dragon"
+      :ok = :gen_tcp.send(client, @to_play <> <<0x17, 0x07, 0x15, "hotblock:watch dragon">>)
+
+      expected = Encoder.system_chat("Unknown entity: dragon")
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+  end
 end

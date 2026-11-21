@@ -1,5 +1,6 @@
 defmodule Hotblock.Protocol do
-  alias Hotblock.Packets
+  alias Hotblock.Packets.Clientbound
+  alias Hotblock.Packets.Serverbound
   alias Hotblock.Protocol.Types
 
   @max_frame_length 2_097_151
@@ -77,7 +78,7 @@ defmodule Hotblock.Protocol do
   end
 
   def decode_command(:play, frame) do
-    chat_command = Packets.chat_command()
+    chat_command = Serverbound.chat_command()
 
     with {:ok, ^chat_command, rest} <- Types.decode_varint(frame),
          {:ok, command, <<>>} <- Types.decode_string(rest) do
@@ -91,15 +92,89 @@ defmodule Hotblock.Protocol do
 
   def decode_position(:play, frame) do
     with {:ok, id, rest} <- Types.decode_varint(frame),
-         true <- id in [Packets.position(), Packets.position_look()],
-         {:ok, x, rest} <- Types.decode_double(rest),
-         {:ok, y, rest} <- Types.decode_double(rest),
-         {:ok, z, _rest} <- Types.decode_double(rest) do
-      {:ok, {x, y, z}}
+         true <- id in [Serverbound.position(), Serverbound.position_look()] do
+      decode_coordinates(rest)
     else
       _ -> :error
     end
   end
 
   def decode_position(_phase, _frame), do: :error
+
+  def decode_entity_event(:play, frame) do
+    with {:ok, packet_id, rest} <- Types.decode_varint(frame),
+         {:ok, kind} <- Map.fetch(entity_packets(), packet_id) do
+      decode_entity(kind, rest)
+    else
+      _ -> :error
+    end
+  end
+
+  def decode_entity_event(_phase, _frame), do: :error
+
+  defp entity_packets do
+    %{
+      Clientbound.spawn_entity() => :spawn,
+      Clientbound.rel_entity_move() => :move,
+      Clientbound.entity_move_look() => :move,
+      Clientbound.sync_entity_position() => :teleport,
+      Clientbound.entity_teleport() => :teleport,
+      Clientbound.entity_destroy() => :remove
+    }
+  end
+
+  defp decode_entity(:spawn, rest) do
+    with {:ok, id, rest} <- Types.decode_varint(rest),
+         <<_uuid::binary-size(16), rest::binary>> <- rest,
+         {:ok, type_id, rest} <- Types.decode_varint(rest),
+         {:ok, position} <- decode_coordinates(rest) do
+      {:spawn, id, type_id, position}
+    else
+      _ -> :error
+    end
+  end
+
+  defp decode_entity(:move, rest) do
+    with {:ok, id, rest} <- Types.decode_varint(rest),
+         <<dx::signed-16, dy::signed-16, dz::signed-16, _rest::binary>> <- rest do
+      {:move, id, {dx / 4096, dy / 4096, dz / 4096}}
+    else
+      _ -> :error
+    end
+  end
+
+  defp decode_entity(:teleport, rest) do
+    with {:ok, id, rest} <- Types.decode_varint(rest),
+         {:ok, position} <- decode_coordinates(rest) do
+      {:teleport, id, position}
+    else
+      _ -> :error
+    end
+  end
+
+  defp decode_entity(:remove, rest) do
+    with {:ok, count, rest} <- Types.decode_varint(rest),
+         {:ok, ids} <- decode_varints(rest, count, []) do
+      {:remove, ids}
+    else
+      _ -> :error
+    end
+  end
+
+  defp decode_coordinates(binary) do
+    with {:ok, x, rest} <- Types.decode_double(binary),
+         {:ok, y, rest} <- Types.decode_double(rest),
+         {:ok, z, _rest} <- Types.decode_double(rest) do
+      {:ok, {x, y, z}}
+    end
+  end
+
+  defp decode_varints(_rest, 0, acc), do: {:ok, Enum.reverse(acc)}
+
+  defp decode_varints(rest, count, acc) do
+    case Types.decode_varint(rest) do
+      {:ok, value, rest} -> decode_varints(rest, count - 1, [value | acc])
+      _ -> :error
+    end
+  end
 end
