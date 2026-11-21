@@ -501,4 +501,70 @@ defmodule Hotblock.ProxyTest do
       assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
     end
   end
+
+  describe "/hotblock:spawn" do
+    alias Hotblock.Protocol.Encoder
+
+    # position_look (0x1F): the player at x 0, y 64, z 0, facing south (yaw 0)
+    @facing_south <<0x22, 0x1F, 0.0::float-64, 64.0::float-64, 0.0::float-64>> <>
+                    <<0.0::float-32, 0.0::float-32, 0x01>>
+
+    # chat_command (0x07) with the command "hotblock:spawn zombie"
+    @spawn_zombie <<0x17, 0x07, 0x15, "hotblock:spawn zombie">>
+
+    test "sends a summon command 3 blocks behind the player to the server",
+         %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @facing_south <> @spawn_zombie <> @other)
+
+      expected =
+        @to_play <>
+          @facing_south <>
+          Encoder.chat_command("summon minecraft:zombie 0.00 64.00 -3.00") <>
+          @other
+
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+
+    test "uses the distance and direction from the command", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      # chat_command (0x07) with the command "hotblock:spawn zombie 5 front"
+      :ok =
+        :gen_tcp.send(
+          client,
+          @to_play <> @facing_south <> <<0x1F, 0x07, 0x1D, "hotblock:spawn zombie 5 front">>
+        )
+
+      expected =
+        @to_play <>
+          @facing_south <>
+          Encoder.chat_command("summon minecraft:zombie 0.00 64.00 5.00")
+
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+    end
+
+    test "replies with a chat error for an unknown entity and sends nothing to the server",
+         %{listen: listen} do
+      {client, server} = connect(listen)
+
+      # chat_command (0x07) with the command "hotblock:spawn dragon"
+      :ok =
+        :gen_tcp.send(
+          client,
+          @to_play <> @facing_south <> <<0x17, 0x07, 0x15, "hotblock:spawn dragon">>
+        )
+
+      expected = Encoder.system_chat("Unknown entity: dragon")
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+
+      forwarded = @to_play <> @facing_south
+      assert {:ok, ^forwarded} = :gen_tcp.recv(server, byte_size(forwarded), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+  end
 end

@@ -217,4 +217,10 @@ defmodule Hotblock.Protocol.EncoderTest do
       assert coordinates == <<87::signed-32, -1::signed-32, 800::signed-32>>
     end
   end
+
+  describe "chat_command/1" do
+    test "builds the serverbound frame with the command as a string" do
+      assert Encoder.chat_command("time set day") == <<0x0E, 0x07, 0x0C, "time set day">>
+    end
+  end
 end

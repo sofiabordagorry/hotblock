@@ -23,6 +23,7 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:fx sound <sound>" in usages
       assert "/hotblock:watch <entity> [radius]" in usages
       assert "/hotblock:unwatch <entity>" in usages
+      assert "/hotblock:spawn <entity> [distance] [behind|front|left|right]" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -41,6 +42,7 @@ defmodule Hotblock.CommandsTest do
                /hotblock:fx sound <sound> - Plays a sound where you stand
                /hotblock:watch <entity> [radius] - Warns you when that entity gets close
                /hotblock:unwatch <entity> - Stops warning about that entity
+               /hotblock:spawn <entity> [distance] [behind|front|left|right] - Spawns an entity next to you, behind by default
                /hotblock:help - Lists the proxy's commands\
                """
     end
@@ -108,6 +110,38 @@ defmodule Hotblock.CommandsTest do
     test "returns :error when there is no entity or there are extra words" do
       assert Commands.parse_watch("") == :error
       assert Commands.parse_watch("zombie 10 now") == :error
+    end
+  end
+
+  describe "parse_spawn/1" do
+    test "returns the entity, the distance and the direction" do
+      assert Commands.parse_spawn("zombie 5 front") == {:ok, "zombie", 5, :front}
+      assert Commands.parse_spawn("zombie 5 behind") == {:ok, "zombie", 5, :behind}
+      assert Commands.parse_spawn("zombie 5 left") == {:ok, "zombie", 5, :left}
+      assert Commands.parse_spawn("zombie 5 right") == {:ok, "zombie", 5, :right}
+    end
+
+    test "uses a distance of 3 and behind when they are missing" do
+      assert Commands.parse_spawn("zombie") == {:ok, "zombie", 3, :behind}
+      assert Commands.parse_spawn("zombie 5") == {:ok, "zombie", 5, :behind}
+      assert Commands.parse_spawn("zombie left") == {:ok, "zombie", 3, :left}
+    end
+
+    test "returns :error when the distance is not a whole number above 0" do
+      assert Commands.parse_spawn("zombie 0") == :error
+      assert Commands.parse_spawn("zombie -2") == :error
+      assert Commands.parse_spawn("zombie 2.5") == :error
+      assert Commands.parse_spawn("zombie far") == :error
+    end
+
+    test "returns :error for an unknown direction or the wrong order" do
+      assert Commands.parse_spawn("zombie 5 up") == :error
+      assert Commands.parse_spawn("zombie left 5") == :error
+    end
+
+    test "returns :error when there is no entity or there are extra words" do
+      assert Commands.parse_spawn("") == :error
+      assert Commands.parse_spawn("zombie 5 front now") == :error
     end
   end
 end

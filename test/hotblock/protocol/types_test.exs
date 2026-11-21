@@ -107,4 +107,14 @@ defmodule Hotblock.Protocol.TypesTest do
       end
     end
   end
+
+  describe "decode_float/1" do
+    test "decodes a 32-bit float and returns the bytes after it" do
+      assert Types.decode_float(<<90.0::float-32, 0xAA>>) == {:ok, 90.0, <<0xAA>>}
+    end
+
+    test "returns :error when there are less than 4 bytes" do
+      assert Types.decode_float(<<0x42, 0xB4>>) == :error
+    end
+  end
 end
