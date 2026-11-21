@@ -177,4 +177,30 @@ defmodule Hotblock.Protocol do
       _ -> :error
     end
   end
+
+  def decode_yaw(:play, frame) do
+    with {:ok, id, rest} <- Types.decode_varint(frame),
+         {:ok, rotation} <- rotation(id, rest),
+         {:ok, yaw, _rest} <- Types.decode_float(rotation) do
+      {:ok, yaw}
+    else
+      _ -> :error
+    end
+  end
+
+  def decode_yaw(_phase, _frame), do: :error
+
+  # The bytes where the rotation starts: right away in look, and after x, y
+  # and z (3 doubles, 24 bytes) in position_look
+  defp rotation(id, rest) do
+    cond do
+      id == Serverbound.look() -> {:ok, rest}
+      id == Serverbound.position_look() -> skip_coordinates(rest)
+      true -> :error
+    end
+  end
+
+  defp skip_coordinates(<<_coordinates::binary-size(24), rest::binary>>), do: {:ok, rest}
+
+  defp skip_coordinates(_), do: :error
 end
