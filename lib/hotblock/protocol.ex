@@ -88,4 +88,18 @@ defmodule Hotblock.Protocol do
   end
 
   def decode_command(_phase, _frame), do: :error
+
+  def decode_position(:play, frame) do
+    with {:ok, id, rest} <- Types.decode_varint(frame),
+         true <- id in [Packets.position(), Packets.position_look()],
+         {:ok, x, rest} <- Types.decode_double(rest),
+         {:ok, y, rest} <- Types.decode_double(rest),
+         {:ok, z, _rest} <- Types.decode_double(rest) do
+      {:ok, {x, y, z}}
+    else
+      _ -> :error
+    end
+  end
+
+  def decode_position(_phase, _frame), do: :error
 end
