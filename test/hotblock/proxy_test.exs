@@ -385,4 +385,48 @@ defmodule Hotblock.ProxyTest do
       assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
     end
   end
+
+  describe "/hotblock:fx sound" do
+    alias Hotblock.Protocol.Encoder
+
+    # position (0x1E) at x 1.5, y 64, z -2.25, on the ground
+    @position <<0x1A, 0x1E, 1.5::float-64, 64.0::float-64, -2.25::float-64, 0x01>>
+
+    # chat_command (0x07) with the command "hotblock:fx sound entity.player.levelup"
+    @fx_sound <<0x29, 0x07, 0x27, "hotblock:fx sound entity.player.levelup">>
+
+    test "forwards the position but not the command to the server", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @position <> @fx_sound <> @other)
+
+      expected = @to_play <> @position <> @other
+      assert {:ok, ^expected} = :gen_tcp.recv(server, byte_size(expected), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+
+    test "plays the sound at the last position the client sent", %{listen: listen} do
+      {client, _server} = connect(listen)
+
+      :ok = :gen_tcp.send(client, @to_play <> @position <> @fx_sound)
+
+      expected = Encoder.sound_effect("minecraft:entity.player.levelup", {1.5, 64.0, -2.25})
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+    end
+
+    test "replies with a chat error for an unknown sound", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      # chat_command (0x07) with the command "hotblock:fx sound entity.player.dance"
+      fx_unknown = <<0x27, 0x07, 0x25, "hotblock:fx sound entity.player.dance">>
+      :ok = :gen_tcp.send(client, @to_play <> @position <> fx_unknown)
+
+      expected = Encoder.system_chat("Unknown sound: entity.player.dance")
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+
+      forwarded = @to_play <> @position
+      assert {:ok, ^forwarded} = :gen_tcp.recv(server, byte_size(forwarded), 1000)
+      assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+  end
 end

@@ -210,4 +210,41 @@ defmodule Hotblock.ProtocolTest do
     assert rest == <<>>
     frames
   end
+
+  describe "decode_position/2" do
+    # position (0x1E): x, y and z as 64-bit floats, then the movement flags
+    test "returns the coordinates of a position packet in play" do
+      frame = <<0x1E, 1.5::float-64, 64.0::float-64, -2.25::float-64, 0x01>>
+
+      assert Protocol.decode_position(:play, frame) == {:ok, {1.5, 64.0, -2.25}}
+    end
+
+    # position_look (0x1F): the same coordinates, then yaw, pitch and flags
+    test "returns the coordinates of a position_look packet in play" do
+      frame =
+        <<0x1F, 1.5::float-64, 64.0::float-64, -2.25::float-64, 90.0::float-32, 0.0::float-32,
+          0x00>>
+
+      assert Protocol.decode_position(:play, frame) == {:ok, {1.5, 64.0, -2.25}}
+    end
+
+    test "returns :error for packets without a position" do
+      # look (0x20): only yaw, pitch and flags
+      assert Protocol.decode_position(:play, <<0x20, 90.0::float-32, 0.0::float-32, 0x00>>) ==
+               :error
+
+      # chat_command (0x07)
+      assert Protocol.decode_position(:play, <<0x07, 0x05, "hello">>) == :error
+    end
+
+    test "returns :error outside play" do
+      frame = <<0x1E, 1.5::float-64, 64.0::float-64, -2.25::float-64, 0x01>>
+
+      assert Protocol.decode_position(:configuration, frame) == :error
+    end
+
+    test "returns :error when the coordinates are cut" do
+      assert Protocol.decode_position(:play, <<0x1E, 1.5::float-64, 64.0::float-64>>) == :error
+    end
+  end
 end
