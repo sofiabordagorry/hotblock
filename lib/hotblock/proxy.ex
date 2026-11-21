@@ -54,10 +54,7 @@ defmodule Hotblock.Proxy do
       {:tcp, ^server, data} ->
         {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
 
-        Enum.each(frames, fn frame ->
-          PacketLogger.log(state.phase, :s2c, frame)
-          :gen_tcp.send(client, Encoder.encode_frame(frame))
-        end)
+        state = Enum.reduce(frames, state, &handle_server_frame/2)
 
         loop(%{state | server_buffer: rest})
 
@@ -69,6 +66,12 @@ defmodule Hotblock.Proxy do
         Logger.info("Server disconnected")
         :gen_tcp.close(client)
     end
+  end
+
+  defp handle_server_frame(frame, state) do
+    PacketLogger.log(state.phase, :s2c, frame)
+    :gen_tcp.send(state.client, Encoder.encode_frame(frame))
+    state
   end
 
   defp handle_client_frame(frame, state) do
