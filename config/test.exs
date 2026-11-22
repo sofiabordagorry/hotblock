@@ -10,3 +10,6 @@ config :hotblock, HotblockWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   server: false,
   secret_key_base: "r2WndAdZbUwih6Sqp1zyrkc5F4wKfSVS4mKTDJ7F4DOELxdVju5J3gq2r2yVHnh2"
+
+# Only show warnings and errors in the tests
+config :logger, level: :warning
