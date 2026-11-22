@@ -26,12 +26,18 @@ defmodule Hotblock.ReloadTest do
   end
 
   # Writes a version of the module to disk without loading it. The module has
-  # one function, version/0, that returns the given number.
+  # version/0, which returns the given number, and wait/0, which blocks until
+  # it gets :stop, like a connection waiting for a packet.
   defp write_version(dir, module, version) do
     forms = [
       {:attribute, 1, :module, module},
-      {:attribute, 1, :export, [version: 0]},
-      {:function, 1, :version, 0, [{:clause, 1, [], [], [{:integer, 1, version}]}]}
+      {:attribute, 1, :export, [version: 0, wait: 0]},
+      {:function, 1, :version, 0, [{:clause, 1, [], [], [{:integer, 1, version}]}]},
+      {:function, 1, :wait, 0,
+       [
+         {:clause, 1, [], [],
+          [{:receive, 1, [{:clause, 1, [{:atom, 1, :stop}], [], [{:atom, 1, :ok}]}]}]}
+       ]}
     ]
 
     {:ok, ^module, binary} = :compile.forms(forms, [])
@@ -66,7 +72,7 @@ defmodule Hotblock.ReloadTest do
       {:module, ^module} = :code.load_file(module)
       write_version(dir, module, 2)
 
-      assert Reload.load_modules([module]) == [module]
+      assert Reload.load_modules([module]) == {:ok, [module]}
       assert loaded_version(module) == 2
     end
 
@@ -79,8 +85,67 @@ defmodule Hotblock.ReloadTest do
       Reload.load_modules([module])
       write_version(dir, module, 3)
 
-      assert Reload.load_modules([module]) == [module]
+      assert Reload.load_modules([module]) == {:ok, [module]}
       assert loaded_version(module) == 3
+    end
+
+    test "refuses to load when a process still runs the old version, and does not kill it",
+         %{dir: dir, module: module} do
+      write_version(dir, module, 1)
+      {:module, ^module} = :code.load_file(module)
+
+      # A process waits inside version 1, then version 2 is loaded, so the
+      # process keeps running what is now the old version
+      waiting = spawn(module, :wait, [])
+      write_version(dir, module, 2)
+      {:ok, [^module]} = Reload.load_modules([module])
+
+      # Loading version 3 would remove version 1 and kill the process
+      write_version(dir, module, 3)
+
+      assert Reload.load_modules([module]) == {:error, {:old_code_in_use, [module]}}
+      assert Process.alive?(waiting)
+      assert loaded_version(module) == 2
+    end
+
+    test "loads once the process has left the old version", %{dir: dir, module: module} do
+      write_version(dir, module, 1)
+      {:module, ^module} = :code.load_file(module)
+
+      waiting = spawn(module, :wait, [])
+      write_version(dir, module, 2)
+      {:ok, [^module]} = Reload.load_modules([module])
+      write_version(dir, module, 3)
+      {:error, _} = Reload.load_modules([module])
+
+      ref = Process.monitor(waiting)
+      send(waiting, :stop)
+      assert_receive {:DOWN, ^ref, :process, _, _}
+
+      assert Reload.load_modules([module]) == {:ok, [module]}
+      assert loaded_version(module) == 3
+    end
+
+    test "loads nothing if any of the modules is still in use", %{dir: dir, module: module} do
+      other = :"#{module}_other"
+
+      on_exit(fn ->
+        :code.purge(other)
+        :code.delete(other)
+        :code.purge(other)
+      end)
+
+      for m <- [module, other], do: write_version(dir, m, 1)
+      for m <- [module, other], do: {:module, ^m} = :code.load_file(m)
+
+      # Only the first module has a process left in its old version
+      spawn(module, :wait, [])
+      for m <- [module, other], do: write_version(dir, m, 2)
+      {:ok, _} = Reload.load_modules([module, other])
+      for m <- [module, other], do: write_version(dir, m, 3)
+
+      assert Reload.load_modules([module, other]) == {:error, {:old_code_in_use, [module]}}
+      assert loaded_version(other) == 2
     end
   end
 
@@ -96,6 +161,20 @@ defmodule Hotblock.ReloadTest do
 
     test "says so when nothing changed" do
       assert Reload.report([]) == "Nothing to reload"
+    end
+  end
+
+  describe "refused_report/1" do
+    test "names the modules that are still in use and says what to do" do
+      assert Reload.refused_report([Hotblock.Proxy]) ==
+               "Reload refused: old code of Hotblock.Proxy is still running. " <>
+                 "Nothing was loaded. Wait a moment and try again."
+    end
+
+    test "lists several modules" do
+      assert Reload.refused_report([Hotblock.Proxy, Hotblock.Rules]) ==
+               "Reload refused: old code of Hotblock.Proxy, Hotblock.Rules is still running. " <>
+                 "Nothing was loaded. Wait a moment and try again."
     end
   end
 end
