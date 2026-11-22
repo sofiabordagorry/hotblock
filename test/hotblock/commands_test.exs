@@ -24,6 +24,7 @@ defmodule Hotblock.CommandsTest do
       assert "/hotblock:watch <entity> [radius]" in usages
       assert "/hotblock:unwatch <entity>" in usages
       assert "/hotblock:spawn <entity> [distance] [front|behind|left|right]" in usages
+      assert "/hotblock:stats" in usages
       assert "/hotblock:help" in usages
     end
   end
@@ -43,6 +44,7 @@ defmodule Hotblock.CommandsTest do
                /hotblock:watch <entity> [radius] - Warns you when that entity gets close
                /hotblock:unwatch <entity> - Stops warning about that entity
                /hotblock:spawn <entity> [distance] [front|behind|left|right] - Spawns an entity next to you, in front by default
+               /hotblock:stats - Shows how many packets went through your connection
                /hotblock:help - Lists the proxy's commands\
                """
     end

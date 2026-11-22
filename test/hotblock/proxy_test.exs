@@ -23,11 +23,9 @@ defmodule Hotblock.ProxyTest do
     {client, server}
   end
 
-  # Long-lived loops call themselves as Proxy.loop/1 and
-  # Proxy.loop_acceptor/1, so they jump to the new code after a reload.
-  # For that they have to be public.
-  test "the loops can be called from outside the module" do
-    assert function_exported?(Hotblock.Proxy, :loop, 1)
+  # The accept loop calls itself as Proxy.loop_acceptor/1, so it jumps to
+  # the new code after a reload. For that it has to be public.
+  test "the accept loop can be called from outside the module" do
     assert function_exported?(Hotblock.Proxy, :loop_acceptor, 1)
   end
 
@@ -569,6 +567,19 @@ defmodule Hotblock.ProxyTest do
       forwarded = @to_play <> @facing_south
       assert {:ok, ^forwarded} = :gen_tcp.recv(server, byte_size(forwarded), 1000)
       assert {:error, :timeout} = :gen_tcp.recv(server, 0, 200)
+    end
+  end
+
+  describe "/hotblock:stats" do
+    test "counts every packet, including the command itself", %{listen: listen} do
+      {client, server} = connect(listen)
+
+      # 3 packets to get to play, then the command
+      :ok = :gen_tcp.send(client, @to_play <> <<0x10, 0x07, 0x0E, "hotblock:stats">>)
+
+      expected = Clientbound.system_chat("Packets: 4 from you, 0 from the server")
+      assert {:ok, ^expected} = :gen_tcp.recv(client, byte_size(expected), 1000)
+      assert {:ok, @to_play} = :gen_tcp.recv(server, byte_size(@to_play), 1000)
     end
   end
 end

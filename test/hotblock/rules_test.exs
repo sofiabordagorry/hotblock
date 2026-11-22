@@ -104,6 +104,13 @@ defmodule Hotblock.RulesTest do
       assert Rules.handle_command("hotblock:help", @state) == {:ok, [{:client, help}], @state}
     end
 
+    test "/hotblock:stats shows how many packets went each way" do
+      state = Map.put(@state, :stats, %{from_client: 12, from_server: 345})
+      stats = Clientbound.system_chat("Packets: 12 from you, 345 from the server")
+
+      assert Rules.handle_command("hotblock:stats", state) == {:ok, [{:client, stats}], state}
+    end
+
     test "returns :forward for commands that are not the proxy's or are not valid" do
       for command <- [
             "help",
