@@ -110,6 +110,15 @@ defmodule Hotblock.Connection do
           state
       end
 
+    case Protocol.decode_login_start(phase, frame) do
+      {:ok, name} ->
+        Registry.register(Hotblock.PlayerRegistry, name, nil)
+        Phoenix.PubSub.subscribe(Hotblock.PubSub, "player:" <> name)
+
+      :error ->
+        :ok
+    end
+
     state =
       case Protocol.decode_position(phase, frame) do
         {:ok, position} -> send_alerts(%{state | position: position})
