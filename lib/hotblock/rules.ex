@@ -86,6 +86,12 @@ defmodule Hotblock.Rules do
     end
   end
 
+  def handle_command("hotblock:stats", state) do
+    %{from_client: from_client, from_server: from_server} = state.stats
+    text = "Packets: #{from_client} from you, #{from_server} from the server"
+    {:ok, [{:client, Clientbound.system_chat(text)}], state}
+  end
+
   def handle_command(_command, _state), do: :forward
 
   # The text is "<title>" or "<title> | <subtitle>"

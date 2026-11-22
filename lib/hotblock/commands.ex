@@ -23,6 +23,10 @@ defmodule Hotblock.Commands do
       usage: "/hotblock:spawn <entity> [distance] [front|behind|left|right]",
       description: "Spawns an entity next to you, in front by default"
     },
+    %{
+      usage: "/hotblock:stats",
+      description: "Shows how many packets went through your connection"
+    },
     %{usage: "/hotblock:help", description: "Lists the proxy's commands"}
   ]
 
