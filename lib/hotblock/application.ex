@@ -8,7 +8,7 @@ defmodule Hotblock.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Task.Supervisor, name: Hotblock.ConnectionSupervisor},
+      {DynamicSupervisor, name: Hotblock.ConnectionSupervisor, strategy: :one_for_one},
       Supervisor.child_spec({Task, fn -> Hotblock.Proxy.accept(25565) end}, restart: :permanent)
     ]
 
