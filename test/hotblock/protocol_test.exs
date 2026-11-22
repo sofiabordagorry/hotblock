@@ -352,4 +352,32 @@ defmodule Hotblock.ProtocolTest do
       assert Protocol.decode_yaw(:play, <<0x20, 0x00, 0x00>>) == :error
     end
   end
+
+  describe "decode_login_start/2" do
+    # Login Start (0x00): the player name as a string, then the UUID (16 bytes)
+    @uuid <<0::128>>
+
+    test "returns the player name of a Login Start in login" do
+      assert Protocol.decode_login_start(:login, <<0x00, 0x05, "Steve", @uuid::binary>>) ==
+               {:ok, "Steve"}
+    end
+
+    test "returns :error outside login" do
+      # In handshaking, ID 0x00 is the handshake, and in play it is another packet
+      assert Protocol.decode_login_start(:handshaking, <<0x00, 0x05, "Steve", @uuid::binary>>) ==
+               :error
+
+      assert Protocol.decode_login_start(:play, <<0x00, 0x05, "Steve", @uuid::binary>>) ==
+               :error
+    end
+
+    test "returns :error for other login packets" do
+      # Login Acknowledged (0x03)
+      assert Protocol.decode_login_start(:login, <<0x03>>) == :error
+    end
+
+    test "returns :error when the name is cut" do
+      assert Protocol.decode_login_start(:login, <<0x00, 0x05, "Ste">>) == :error
+    end
+  end
 end

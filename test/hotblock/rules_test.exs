@@ -125,4 +125,11 @@ defmodule Hotblock.RulesTest do
       end
     end
   end
+
+  describe "handle_effect/3" do
+    test ":title shows the text as a title, like /hotblock:fx title" do
+      assert Rules.handle_effect(:title, "Hi", @state) ==
+               Rules.handle_command("hotblock:fx title Hi", @state)
+    end
+  end
 end
