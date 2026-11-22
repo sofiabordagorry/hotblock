@@ -9,7 +9,9 @@ defmodule Hotblock.Application do
   def start(_type, _args) do
     children = [
       {Phoenix.PubSub, name: Hotblock.PubSub},
-      {Registry, keys: :unique, name: Hotblock.PlayerRegistry},
+      # Starts before the Registry, which notifies it by name
+      Hotblock.Players,
+      {Registry, keys: :unique, name: Hotblock.PlayerRegistry, listeners: [Hotblock.Players]},
       {DynamicSupervisor, name: Hotblock.ConnectionSupervisor, strategy: :one_for_one},
       Supervisor.child_spec({Task, fn -> Hotblock.Proxy.accept(25565) end}, restart: :permanent),
       HotblockWeb.Endpoint
