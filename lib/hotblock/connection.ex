@@ -73,6 +73,13 @@ defmodule Hotblock.Connection do
     {:stop, :normal, state}
   end
 
+  def handle_info({:effect, effect, arg}, state) do
+    {:ok, sends, state} = Rules.handle_effect(effect, arg, state)
+    Enum.each(sends, fn {:client, packet} -> :gen_tcp.send(state.client, packet) end)
+
+    {:noreply, state}
+  end
+
   # Handles one frame from the server: logs it and forwards it to the client.
   # Entity packets also update the entity watch, which can send alerts.
   defp handle_server_frame(frame, state) do
@@ -109,6 +116,15 @@ defmodule Hotblock.Connection do
           :gen_tcp.send(state.server, Encoder.encode_frame(frame))
           state
       end
+
+    case Protocol.decode_login_start(phase, frame) do
+      {:ok, name} ->
+        Registry.register(Hotblock.PlayerRegistry, name, nil)
+        Phoenix.PubSub.subscribe(Hotblock.PubSub, "player:" <> name)
+
+      :error ->
+        :ok
+    end
 
     state =
       case Protocol.decode_position(phase, frame) do

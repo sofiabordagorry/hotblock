@@ -90,6 +90,15 @@ defmodule Hotblock.Protocol do
 
   def decode_command(_phase, _frame), do: :error
 
+  def decode_login_start(:login, <<0x00, payload::binary>>) do
+    case Types.decode_string(payload) do
+      {:ok, name, <<_remaining::binary-16>>} -> {:ok, name}
+      _ -> :error
+    end
+  end
+
+  def decode_login_start(_phase, _frame), do: :error
+
   def decode_position(:play, frame) do
     with {:ok, id, rest} <- Types.decode_varint(frame),
          true <- id in [Serverbound.position(), Serverbound.position_look()] do

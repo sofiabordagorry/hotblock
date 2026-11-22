@@ -7,6 +7,8 @@ defmodule Hotblock.Rules do
   alias Hotblock.Effects.{BossBar, EntityWatch, Sound, Spawn}
   alias Hotblock.Protocol.Encoder.Clientbound
 
+  require Logger
+
   def handle_command("hotblock:hello", state) do
     {:ok, [{:client, Clientbound.system_chat("Hello from Elixir!")}], state}
   end
@@ -93,6 +95,16 @@ defmodule Hotblock.Rules do
   end
 
   def handle_command(_command, _state), do: :forward
+
+  def handle_effect(:title, text, state) do
+    handle_command("hotblock:fx title " <> text, state)
+  end
+
+  # An unknown effect sends nothing, so a wrong message doesn't disconnect the player
+  def handle_effect(effect, _arg, state) do
+    Logger.warning("Unknown effect: #{inspect(effect)}")
+    {:ok, [], state}
+  end
 
   # The text is "<title>" or "<title> | <subtitle>"
   defp get_title(text) do
