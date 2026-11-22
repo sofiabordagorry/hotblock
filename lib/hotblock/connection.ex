@@ -37,7 +37,9 @@ defmodule Hotblock.Connection do
        boss_bar: nil,
        position: nil,
        entity_watch: EntityWatch.new(),
-       yaw: nil
+       yaw: nil,
+       version: 2,
+       stats: %{from_client: 0, from_server: 0}
      }}
   end
 
@@ -74,6 +76,7 @@ defmodule Hotblock.Connection do
   # Handles one frame from the server: logs it and forwards it to the client.
   # Entity packets also update the entity watch, which can send alerts.
   defp handle_server_frame(frame, state) do
+    state = update_in(state.stats.from_server, &(&1 + 1))
     PacketLogger.log(state.phase, :s2c, frame)
     :gen_tcp.send(state.client, Encoder.encode_frame(frame))
 
@@ -88,6 +91,8 @@ defmodule Hotblock.Connection do
   end
 
   defp handle_client_frame(frame, state) do
+    state = update_in(state.stats.from_client, &(&1 + 1))
+
     phase = state.phase
 
     state =
@@ -135,4 +140,23 @@ defmodule Hotblock.Connection do
     :gen_tcp.send(state.client, packets)
     %{state | entity_watch: entity_watch}
   end
+
+  # The state's shape changes between versions of this module. migrate/1 takes a
+  # state from any older version to the current one. A state with no version is
+  # from before version 2, which added the stats.
+  def migrate(state) do
+    case Map.get(state, :version, 1) do
+      1 ->
+        state
+        |> Map.put(:version, 2)
+        |> Map.put(:stats, %{from_client: 0, from_server: 0})
+
+      _current ->
+        state
+    end
+  end
+
+  # Called by :sys.change_code/4 during a reload
+  @impl true
+  def code_change(_old_vsn, state, _extra), do: {:ok, migrate(state)}
 end
