@@ -94,6 +94,10 @@ defmodule Hotblock.Rules do
 
   def handle_command(_command, _state), do: :forward
 
+  def handle_effect(:title, text, state) do
+    handle_command("hotblock:fx title " <> text, state)
+  end
+
   # The text is "<title>" or "<title> | <subtitle>"
   defp get_title(text) do
     case String.split(text, " | ", parts: 2) do
