@@ -131,5 +131,10 @@ defmodule Hotblock.RulesTest do
       assert Rules.handle_effect(:title, "Hi", @state) ==
                Rules.handle_command("hotblock:fx title Hi", @state)
     end
+
+    @tag :capture_log
+    test "ignores an unknown effect" do
+      assert Rules.handle_effect(:unknown, "hi", @state) == {:ok, [], @state}
+    end
   end
 end
