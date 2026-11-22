@@ -9,11 +9,19 @@ defmodule Hotblock.Reload do
 
   # Loads each module from disk and returns the ones that loaded
   def load_modules(modules) do
-    Enum.filter(modules, fn module ->
-      # removes code marked as old, but only if no processes linger in it
-      :code.soft_purge(module)
-      match?({:module, ^module}, :code.load_file(module))
-    end)
+    # soft_purge/1 removes code marked as old, but only if no processes linger in it
+    case Enum.reject(modules, &:code.soft_purge/1) do
+      [] ->
+        loaded =
+          Enum.filter(modules, fn module ->
+            match?({:module, ^module}, :code.load_file(module))
+          end)
+
+        {:ok, loaded}
+
+      in_use ->
+        {:error, {:old_code_in_use, in_use}}
+    end
   end
 
   def report([]), do: "Nothing to reload"
@@ -25,18 +33,31 @@ defmodule Hotblock.Reload do
     "Reloaded #{Enum.count(modules)} modules: #{modules_list}"
   end
 
+  def refused_report(modules) do
+    modules_list = Enum.map_join(modules, ", ", &inspect/1)
+
+    "Reload refused: old code of #{modules_list} is still running. Nothing was loaded. Wait a moment and try again."
+  end
+
   # Compiles the project and loads the proxy's modules that changed, without
   # restarting it. Run it from IEx: Hotblock.Reload.reload()
   def reload do
     case compile() do
       :ok ->
-        modules =
+        loaded_modules =
           Application.spec(:hotblock, :modules)
           |> changed_modules()
           |> load_modules()
 
-        Logger.info(report(modules))
-        {:ok, modules}
+        case loaded_modules do
+          {:ok, modules} ->
+            Logger.info(report(modules))
+            {:ok, modules}
+
+          {:error, {:old_code_in_use, modules}} ->
+            Logger.warning(refused_report(modules))
+            {:error, {:old_code_in_use, modules}}
+        end
 
       {:error, output} ->
         Logger.error("Compilation failed:\n" <> output)
