@@ -47,7 +47,7 @@ defmodule Hotblock.Reload do
         loaded_modules =
           Application.spec(:hotblock, :modules)
           |> changed_modules()
-          |> load_modules()
+          |> load_and_migrate(connections())
 
         case loaded_modules do
           {:ok, modules} ->
@@ -73,6 +73,34 @@ defmodule Hotblock.Reload do
     case System.cmd("mix", ["compile"], env: env, stderr_to_stdout: true) do
       {_output, 0} -> :ok
       {output, _status} -> {:error, output}
+    end
+  end
+
+  # The pids of the running player connections
+  def connections do
+    for {_id, pid, _type, _modules} <-
+          DynamicSupervisor.which_children(Hotblock.ConnectionSupervisor),
+        is_pid(pid),
+        do: pid
+  end
+
+  # Loads the modules with the connections suspended, so none of them handles a
+  # packet with the new code and the old state. If Connection was loaded, each
+  # connection migrates its state before it resumes. `load` is there so tests
+  # can make the load fail.
+  def load_and_migrate(modules, connections, load \\ &load_modules/1) do
+    Enum.each(connections, &:sys.suspend/1)
+
+    try do
+      with {:ok, loaded} <- load.(modules) do
+        if Hotblock.Connection in loaded do
+          Enum.each(connections, &:sys.change_code(&1, Hotblock.Connection, nil, nil))
+        end
+
+        {:ok, loaded}
+      end
+    after
+      Enum.each(connections, &:sys.resume/1)
     end
   end
 end
