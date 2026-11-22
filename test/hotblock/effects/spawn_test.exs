@@ -77,4 +77,24 @@ defmodule Hotblock.Effects.SpawnTest do
       assert Spawn.packets("zombie", 3, :behind, @player, nil) == error
     end
   end
+
+  describe "packets_at/3" do
+    test "summons the entity at the player's position plus the offset, at the same height" do
+      assert Spawn.packets_at("zombie", {2.5, -3.0}, {10.0, 70.0, -5.0}) ==
+               {:server, Serverbound.chat_command("summon minecraft:zombie 12.50 70.00 -8.00")}
+    end
+
+    test "replies with a chat error for an unknown entity" do
+      assert Spawn.packets_at("dragon", {1.0, 1.0}, @player) ==
+               {:client, Clientbound.system_chat("Unknown entity: dragon")}
+    end
+
+    test "replies with a chat error while the position is not known" do
+      assert Spawn.packets_at("zombie", {1.0, 1.0}, nil) ==
+               {:client,
+                Clientbound.system_chat(
+                  "Your position is not known yet, move a bit and try again"
+                )}
+    end
+  end
 end

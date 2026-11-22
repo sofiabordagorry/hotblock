@@ -4,6 +4,7 @@ defmodule Hotblock.PlayerTest do
 
   import Hotblock.ProxyHelpers
 
+  alias Hotblock.Protocol.Encoder.Serverbound
   alias Hotblock.Rules
 
   setup :listen_server
@@ -30,6 +31,21 @@ defmodule Hotblock.PlayerTest do
     Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:Herobrine", {:effect, :title, "hi"})
 
     assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+  end
+
+  test "a broadcast spawn reaches the server as a summon command", %{listen: listen} do
+    {client, server, _pid} = join(listen, "Dinnerbone")
+    to_play(client, server)
+    move(client, server, {0.0, 64.0, 0.0})
+
+    Phoenix.PubSub.broadcast(
+      Hotblock.PubSub,
+      "player:Dinnerbone",
+      {:effect, :spawn, {"zombie", {1.0, 0.0}}}
+    )
+
+    summon = Serverbound.chat_command("summon minecraft:zombie 1.00 64.00 0.00")
+    assert {:ok, ^summon} = :gen_tcp.recv(server, byte_size(summon), 1000)
   end
 
   test "the name is free again once the player disconnects", %{listen: listen} do

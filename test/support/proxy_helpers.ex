@@ -43,6 +43,24 @@ defmodule Hotblock.ProxyHelpers do
     {client, server, pid}
   end
 
+  # Moves a joined connection to the play state: Login Acknowledged, then
+  # Acknowledge Finish Configuration, both with ID 0x03
+  def to_play(client, server) do
+    frames = Encoder.encode_frame(<<0x03>>) <> Encoder.encode_frame(<<0x03>>)
+    :ok = :gen_tcp.send(client, frames)
+    {:ok, ^frames} = :gen_tcp.recv(server, byte_size(frames), 1000)
+    :ok
+  end
+
+  # Sends a position packet (0x1E: x, y, z, then the flags) from the client,
+  # in play
+  def move(client, server, {x, y, z}) do
+    frame = Encoder.encode_frame(<<0x1E, x::float-64, y::float-64, z::float-64, 0>>)
+    :ok = :gen_tcp.send(client, frame)
+    {:ok, ^frame} = :gen_tcp.recv(server, byte_size(frame), 1000)
+    :ok
+  end
+
   # The Registry is updated by the connection process, so this waits for it
   def lookup(name, tries \\ 20) do
     case Registry.lookup(Hotblock.PlayerRegistry, name) do
