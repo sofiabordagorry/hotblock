@@ -75,7 +75,7 @@ defmodule Hotblock.Connection do
 
   def handle_info({:effect, effect, arg}, state) do
     {:ok, sends, state} = Rules.handle_effect(effect, arg, state)
-    Enum.each(sends, fn {:client, packet} -> :gen_tcp.send(state.client, packet) end)
+    send_all(sends, state)
 
     {:noreply, state}
   end
@@ -105,11 +105,7 @@ defmodule Hotblock.Connection do
     state =
       with {:ok, command} <- Protocol.decode_command(phase, frame),
            {:ok, sends, state} <- Rules.handle_command(command, state) do
-        Enum.each(sends, fn
-          {:client, packet} -> :gen_tcp.send(state.client, packet)
-          {:server, packet} -> :gen_tcp.send(state.server, packet)
-        end)
-
+        send_all(sends, state)
         state
       else
         _ ->
@@ -146,6 +142,13 @@ defmodule Hotblock.Connection do
     end
 
     %{state | phase: new_phase}
+  end
+
+  defp send_all(sends, state) do
+    Enum.each(sends, fn
+      {:client, packet} -> :gen_tcp.send(state.client, packet)
+      {:server, packet} -> :gen_tcp.send(state.server, packet)
+    end)
   end
 
   # Sends the alerts for watched entities that are close and keeps the
