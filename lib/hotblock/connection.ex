@@ -9,6 +9,7 @@ defmodule Hotblock.Connection do
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
   alias Hotblock.Protocol.Encoder
+  alias Hotblock.Protocol.Encoder.Clientbound
   alias Hotblock.Rules
 
   require Logger
@@ -17,6 +18,16 @@ defmodule Hotblock.Connection do
 
   # The proxy calls it once the client socket belongs to this process
   def activate(pid), do: send(pid, :activate)
+
+  # where the player is and looks, the entities around and the watches
+  def snapshot(pid) do
+    GenServer.call(pid, :snapshot, 200)
+  catch
+    :exit, _reason -> :unavailable
+  end
+
+  # Disconnects the player, showing the reason
+  def kick(pid, reason), do: send(pid, {:kick, reason})
 
   @impl true
   def init(client) do
@@ -61,6 +72,20 @@ defmodule Hotblock.Connection do
     {:noreply, %{state | server_buffer: rest}}
   end
 
+  def handle_info({:kick, reason}, state) do
+    Logger.info("Kicked: #{reason}")
+
+    # The disconnect packet has another ID outside play, so there the sockets
+    # are just closed
+    if state.phase == :play do
+      :gen_tcp.send(state.client, Clientbound.disconnect(reason))
+    end
+
+    :gen_tcp.close(state.client)
+    :gen_tcp.close(state.server)
+    {:stop, :normal, state}
+  end
+
   def handle_info({:tcp_closed, client}, %{client: client} = state) do
     Logger.info("Client disconnected")
     :gen_tcp.close(state.server)
@@ -78,6 +103,19 @@ defmodule Hotblock.Connection do
     send_all(sends, state)
 
     {:noreply, state}
+  end
+
+  @impl true
+  def handle_call(:snapshot, _from, state) do
+    snapshot = %{
+      position: state.position,
+      yaw: state.yaw,
+      entities: Map.values(state.entity_watch.entities),
+      watches: state.entity_watch.watches,
+      boss_bar: state.boss_bar
+    }
+
+    {:reply, snapshot, state}
   end
 
   # Handles one frame from the server: logs it and forwards it to the client.

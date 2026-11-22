@@ -175,4 +175,11 @@ defmodule Hotblock.Protocol.Encoder.ClientboundTest do
       assert coordinates == <<87::signed-32, -1::signed-32, 800::signed-32>>
     end
   end
+
+  describe "disconnect/1" do
+    test "is packet 0x20 with the reason as a text component" do
+      nbt = Hotblock.Protocol.NBT.encode_text("Bye")
+      assert Clientbound.disconnect("Bye") == <<byte_size(nbt) + 1, 0x20>> <> nbt
+    end
+  end
 end

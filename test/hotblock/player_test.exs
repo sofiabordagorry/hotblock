@@ -4,8 +4,13 @@ defmodule Hotblock.PlayerTest do
 
   import Hotblock.ProxyHelpers
 
-  alias Hotblock.Protocol.Encoder.Serverbound
+  alias Hotblock.Connection
+  alias Hotblock.Protocol.{Encoder, Types}
+  alias Hotblock.Protocol.Encoder.{Clientbound, Serverbound}
   alias Hotblock.Rules
+
+  # The type id of the zombie in minecraft-data 26.1
+  @zombie 150
 
   setup :listen_server
 
@@ -46,6 +51,85 @@ defmodule Hotblock.PlayerTest do
 
     summon = Serverbound.chat_command("summon minecraft:zombie 1.00 64.00 0.00")
     assert {:ok, ^summon} = :gen_tcp.recv(server, byte_size(summon), 1000)
+  end
+
+  describe "snapshot/1" do
+    test "has the position, the yaw, the entities and the watches", %{listen: listen} do
+      {client, server, pid} = join(listen, "Grumm")
+      to_play(client, server)
+
+      # position_look (0x1F): x, y, z, yaw, pitch, flags
+      look =
+        Encoder.encode_frame(
+          <<0x1F, 1.0::float-64, 64.0::float-64, 2.0::float-64, 90.0::float-32, 0.0::float-32, 0>>
+        )
+
+      :ok = :gen_tcp.send(client, look)
+      {:ok, ^look} = :gen_tcp.recv(server, byte_size(look), 1000)
+
+      # spawn_entity (0x01): id, UUID, type, x, y, z, then fields the proxy ignores
+      spawn =
+        Encoder.encode_frame(
+          <<0x01, 7, 0::128>> <>
+            Types.encode_varint(@zombie) <>
+            <<5.0::float-64, 64.0::float-64, 6.0::float-64, 0::64>>
+        )
+
+      :ok = :gen_tcp.send(server, spawn)
+      {:ok, ^spawn} = :gen_tcp.recv(client, byte_size(spawn), 1000)
+
+      Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:Grumm", {:effect, :watch, {"zombie", 10}})
+
+      assert %{
+               position: {1.0, 64.0, 2.0},
+               yaw: 90.0,
+               entities: [%{type: "zombie", position: {5.0, 64.0, 6.0}}],
+               watches: %{"zombie" => 10},
+               boss_bar: nil
+             } = Connection.snapshot(pid)
+    end
+
+    test "is :unavailable while the connection is suspended", %{listen: listen} do
+      {_client, _server, pid} = join(listen, "Grumm")
+
+      :ok = :sys.suspend(pid)
+      assert Connection.snapshot(pid) == :unavailable
+      :ok = :sys.resume(pid)
+
+      assert %{position: nil} = Connection.snapshot(pid)
+    end
+
+    test "is :unavailable for a connection that is gone", %{listen: listen} do
+      {_client, _server, pid} = join(listen, "Grumm")
+      ref = Process.monitor(pid)
+      Process.exit(pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+
+      assert Connection.snapshot(pid) == :unavailable
+    end
+  end
+
+  describe "kick/2" do
+    test "in play, sends the reason and closes both sockets", %{listen: listen} do
+      {client, server, pid} = join(listen, "Grumm")
+      to_play(client, server)
+
+      Connection.kick(pid, "Bye")
+
+      disconnect = Clientbound.disconnect("Bye")
+      assert {:ok, ^disconnect} = :gen_tcp.recv(client, byte_size(disconnect), 1000)
+      assert {:error, :closed} = :gen_tcp.recv(client, 0, 1000)
+      assert {:error, :closed} = :gen_tcp.recv(server, 0, 1000)
+    end
+
+    test "before play, only closes the sockets", %{listen: listen} do
+      {client, server, pid} = join(listen, "Grumm")
+
+      Connection.kick(pid, "Bye")
+
+      assert {:error, :closed} = :gen_tcp.recv(client, 0, 1000)
+      assert {:error, :closed} = :gen_tcp.recv(server, 0, 1000)
+    end
   end
 
   test "the name is free again once the player disconnects", %{listen: listen} do

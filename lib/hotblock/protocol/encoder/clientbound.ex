@@ -13,6 +13,10 @@ defmodule Hotblock.Protocol.Encoder.Clientbound do
     Encoder.encode_packet(Packets.Clientbound.system_chat(), NBT.encode_text(text) <> <<0>>)
   end
 
+  def disconnect(reason) do
+    Encoder.encode_packet(Packets.Clientbound.disconnect(), NBT.encode_text(reason))
+  end
+
   def action_bar(text) do
     Encoder.encode_packet(Packets.Clientbound.action_bar(), NBT.encode_text(text))
   end
