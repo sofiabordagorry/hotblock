@@ -29,7 +29,8 @@ defmodule Hotblock.MixProject do
     [
       {:phoenix, "~> 1.8"},
       {:phoenix_live_view, "~> 1.2"},
-      {:bandit, "~> 1.15"}
+      {:bandit, "~> 1.15"},
+      {:lazy_html, "~> 0.1.0", only: :test}
     ]
   end
 end
