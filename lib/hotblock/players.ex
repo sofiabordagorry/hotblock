@@ -16,10 +16,22 @@ defmodule Hotblock.Players do
     |> Enum.sort()
   end
 
+  # The state is %{monitor ref => player name}.
+  # If this process restarts, it monitors again the players who are already
+  # online, so it still hears when they leave. At boot it starts before the
+  # Registry, so there is nobody yet.
   @impl true
-  def init(nil), do: {:ok, %{}}
+  def init(nil) do
+    names = for {name, pid} <- online(), into: %{}, do: {Process.monitor(pid), name}
+    {:ok, names}
+  end
 
-  # The state is %{monitor ref => player name}
+  defp online do
+    Registry.select(@registry, [{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+  rescue
+    ArgumentError -> []
+  end
+
   @impl true
   def handle_info({:register, @registry, name, pid, _value}, names) do
     ref = Process.monitor(pid)
@@ -27,9 +39,16 @@ defmodule Hotblock.Players do
     {:noreply, Map.put(names, ref, name)}
   end
 
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, names) do
+  # When a player reconnects quickly, the new connection can register before
+  # this hears that the old one ended. Then the player is still online.
+  def handle_info({:DOWN, ref, :process, pid, _reason}, names) do
     {name, names} = Map.pop(names, ref)
-    broadcast({:player_left, name})
+
+    case Registry.lookup(@registry, name) do
+      [{other, _}] when other != pid -> :ok
+      _ -> broadcast({:player_left, name})
+    end
+
     {:noreply, names}
   end
 

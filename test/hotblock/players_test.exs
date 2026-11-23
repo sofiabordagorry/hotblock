@@ -41,4 +41,63 @@ defmodule Hotblock.PlayersTest do
 
     assert_receive {:player_left, "Alex"}, 1000
   end
+
+  # A process that registers itself under a name, like a connection does
+  defp fake_connection(name) do
+    test = self()
+
+    pid =
+      spawn(fn ->
+        {:ok, _} = Registry.register(Hotblock.PlayerRegistry, name, nil)
+        send(test, :registered)
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive :registered
+    on_exit(fn -> Process.exit(pid, :kill) end)
+    pid
+  end
+
+  test "does not say a player left when the name is already back on a new connection" do
+    # The old connection, as Players saw it when it registered
+    old = spawn(fn -> Process.sleep(:infinity) end)
+    on_exit(fn -> Process.exit(old, :kill) end)
+    send(Players, {:register, Hotblock.PlayerRegistry, "Racer", old, nil})
+
+    # The player reconnects, and the new connection registers before Players
+    # hears that the old one ended
+    _new = fake_connection("Racer")
+    Phoenix.PubSub.subscribe(Hotblock.PubSub, "players")
+
+    Process.exit(old, :kill)
+
+    refute_receive {:player_left, "Racer"}, 200
+  end
+
+  test "after a restart, still says when players that were online leave" do
+    ghost = fake_connection("Ghost")
+
+    old_players = Process.whereis(Players)
+    ref = Process.monitor(old_players)
+    Process.exit(old_players, :kill)
+    assert_receive {:DOWN, ^ref, :process, _, :killed}
+    wait_for_restart()
+    Phoenix.PubSub.subscribe(Hotblock.PubSub, "players")
+
+    Process.exit(ghost, :kill)
+
+    assert_receive {:player_left, "Ghost"}, 1000
+  end
+
+  defp wait_for_restart(tries \\ 50) do
+    case Process.whereis(Players) do
+      nil when tries > 0 ->
+        Process.sleep(10)
+        wait_for_restart(tries - 1)
+
+      pid ->
+        # Waits until init has run
+        :sys.get_state(pid)
+    end
+  end
 end
