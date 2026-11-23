@@ -153,8 +153,11 @@ defmodule Hotblock.Connection do
 
     case Protocol.decode_login_start(phase, frame) do
       {:ok, name} ->
-        Registry.register(Hotblock.PlayerRegistry, name, nil)
-        Phoenix.PubSub.subscribe(Hotblock.PubSub, "player:" <> name)
+        # If another connection already has this name, this one does not get
+        # its effects either
+        with {:ok, _} <- Registry.register(Hotblock.PlayerRegistry, name, nil) do
+          Phoenix.PubSub.subscribe(Hotblock.PubSub, "player:" <> name)
+        end
 
       :error ->
         :ok

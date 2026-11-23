@@ -132,6 +132,21 @@ defmodule Hotblock.PlayerTest do
     end
   end
 
+  test "a second connection with a name already taken does not get that player's effects",
+       %{listen: listen} do
+    # The test process holds the name first
+    {:ok, _} = Registry.register(Hotblock.PlayerRegistry, "Twin", nil)
+    before = connections()
+    {client, _server, _pid} = join(listen, "Twin")
+    [second] = connections() -- before
+    # Waits until the connection has handled the Login Start
+    :sys.get_state(second)
+
+    Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:Twin", {:effect, :title, "hi"})
+
+    assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
+  end
+
   test "the name is free again once the player disconnects", %{listen: listen} do
     {client, _server, pid} = join(listen, "Jeb")
     ref = Process.monitor(pid)
