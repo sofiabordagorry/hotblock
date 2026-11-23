@@ -281,6 +281,11 @@ defmodule HotblockWeb.PanelLive do
   defp error(socket, message), do: socket |> clear_flash() |> put_flash(:error, message)
 
   # The page
+  #
+  # The page redraws every time the map changes, and LiveView then puts back
+  # the server's value in every input without the focus. The forms whose
+  # values live only in the browser have phx-update="ignore", so what was
+  # typed or chosen stays until it is sent.
 
   @impl true
   def render(assigns) do
@@ -295,7 +300,7 @@ defmodule HotblockWeb.PanelLive do
       </header>
 
       <div class="layout">
-        <nav id="players" class="players" aria-label="Players">
+        <nav :if={@players != []} id="players" class="players" aria-label="Players">
           <button
             :for={name <- @players}
             type="button"
@@ -354,7 +359,7 @@ defmodule HotblockWeb.PanelLive do
           <div class="stack">
             <section class="card">
               <h2>Title</h2>
-              <form id="title-form" class="row" phx-submit="title">
+              <form id="title-form" class="row" phx-submit="title" phx-update="ignore">
                 <input name="text" placeholder="Hello | a subtitle" autocomplete="off" />
                 <button>Send</button>
               </form>
@@ -362,7 +367,7 @@ defmodule HotblockWeb.PanelLive do
 
             <section class="card">
               <h2>Action bar</h2>
-              <form id="actionbar-form" class="row" phx-submit="actionbar">
+              <form id="actionbar-form" class="row" phx-submit="actionbar" phx-update="ignore">
                 <input name="text" placeholder="Text above the hotbar" autocomplete="off" />
                 <button>Send</button>
               </form>
@@ -386,7 +391,7 @@ defmodule HotblockWeb.PanelLive do
 
             <section class="card">
               <h2>Sound</h2>
-              <form id="sound-form" class="row" phx-submit="sound">
+              <form id="sound-form" class="row" phx-submit="sound" phx-update="ignore">
                 <input
                   name="sound"
                   list="sounds"
@@ -430,7 +435,7 @@ defmodule HotblockWeb.PanelLive do
 
             <section class="card">
               <h2>Watch</h2>
-              <form id="watch-form" class="row" phx-submit="watch">
+              <form id="watch-form" class="row" phx-submit="watch" phx-update="ignore">
                 <select name="entity" aria-label="Entity">
                   <optgroup
                     :for={{label, category} <- [{"Hostile", :hostile}, {"Passive", :passive}]}
@@ -467,7 +472,7 @@ defmodule HotblockWeb.PanelLive do
 
             <section :if={@admin?} class="card danger-zone">
               <h2>Admin</h2>
-              <form id="kick-form" class="row" phx-submit="kick">
+              <form id="kick-form" class="row" phx-submit="kick" phx-update="ignore">
                 <input name="reason" placeholder="Reason for the kick" autocomplete="off" />
                 <button class="danger">Kick</button>
               </form>

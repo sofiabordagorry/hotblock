@@ -88,7 +88,8 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  /* Lines up with the content, which is at most 1280px wide and centred */
+  padding: 14px max(16px, calc((100% - 1248px) / 2));
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -435,7 +436,9 @@ button.small {
 
 /* Nobody online */
 
+/* Without players there is no list on the left, so it takes the whole width */
 .empty {
+  grid-column: 1 / -1;
   display: grid;
   justify-items: center;
   text-align: center;

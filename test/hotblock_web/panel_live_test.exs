@@ -364,6 +364,19 @@ defmodule HotblockWeb.PanelLiveTest do
     end
   end
 
+  # The page redraws every time the map changes. LiveView puts back the
+  # server's value in every input that does not have the focus, and these
+  # forms keep their values only in the browser, so they must not be patched.
+  test "the forms that keep what was typed are not touched when the page redraws",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin?token=test-token")
+    send(view.pid, {:player_joined, "Alex"})
+
+    for form <- ~w(title-form actionbar-form sound-form watch-form kick-form) do
+      assert has_element?(view, "##{form}[phx-update=ignore]"), "#{form} is patched"
+    end
+  end
+
   test "the entity and sound lists come from minecraft-data", %{conn: conn} do
     view = panel(conn, ["Alex"])
 
