@@ -8,6 +8,7 @@ defmodule HotblockWeb.PanelLive do
 
   alias Hotblock.{Commands, Connection, Entities, Players}
   alias Hotblock.Effects.Sound
+  alias HotblockWeb.MapComponent
 
   # How often the page asks the selected player's connection for its state
   @refresh_ms 250
@@ -31,7 +32,8 @@ defmodule HotblockWeb.PanelLive do
        entities: Entities.spawnable(),
        sounds: Sound.names(),
        bar_colors: Commands.bar_colors(),
-       bar: %{"title" => "", "percent" => "50", "color" => "red"}
+       bar: %{"title" => "", "percent" => "50", "color" => "red"},
+       spawn_entity: "zombie"
      )}
   end
 
@@ -88,6 +90,17 @@ defmodule HotblockWeb.PanelLive do
   @impl true
   def handle_event("select", %{"name" => name}, socket) do
     {:noreply, select(socket, name)}
+  end
+
+  def handle_event("spawn_entity", %{"entity" => entity}, socket) do
+    {:noreply, assign(socket, spawn_entity: entity)}
+  end
+
+  # A tap on the map, as an offset in blocks from the player
+  def handle_event("spawn", %{"dx" => dx, "dz" => dz}, socket)
+      when is_number(dx) and is_number(dz) do
+    entity = socket.assigns.spawn_entity
+    {:noreply, send_effect(socket, :spawn, {entity, {dx * 1.0, dz * 1.0}}, display_name(entity))}
   end
 
   def handle_event("title", %{"text" => text}, socket) do
@@ -229,118 +242,154 @@ defmodule HotblockWeb.PanelLive do
         </main>
 
         <main :if={@selected} class="controls">
-          <section class="card">
-            <h2>Title</h2>
-            <form id="title-form" class="row" phx-submit="title">
-              <input name="text" placeholder="Hello | a subtitle" autocomplete="off" />
-              <button>Send</button>
-            </form>
-          </section>
-
-          <section class="card">
-            <h2>Action bar</h2>
-            <form id="actionbar-form" class="row" phx-submit="actionbar">
-              <input name="text" placeholder="Text above the hotbar" autocomplete="off" />
-              <button>Send</button>
-            </form>
-          </section>
-
-          <section class="card">
-            <h2>Weather</h2>
-            <div class="weather">
-              <button
-                :for={{weather, label} <- [clear: "Clear", rain: "Rain", thunder: "Thunder"]}
-                id={"weather-#{weather}"}
-                type="button"
-                class={["ghost", "weather-#{weather}"]}
-                phx-click="weather"
-                phx-value-weather={weather}
-              >
-                <span class="weather-icon"></span>{label}
-              </button>
+          <section class="card map-card">
+            <div class="map-head">
+              <h2>Map</h2>
+              <form id="spawn-form" phx-change="spawn_entity">
+                <label>
+                  <span>Tap to spawn</span>
+                  <select name="entity">
+                    <optgroup
+                      :for={{label, category} <- [{"Hostile", :hostile}, {"Passive", :passive}]}
+                      label={label}
+                    >
+                      <option
+                        :for={entity <- @entities}
+                        :if={entity.category == category}
+                        value={entity.name}
+                        selected={entity.name == @spawn_entity}
+                      >
+                        {entity.display_name}
+                      </option>
+                    </optgroup>
+                  </select>
+                </label>
+              </form>
             </div>
-          </section>
-
-          <section class="card">
-            <h2>Sound</h2>
-            <form id="sound-form" class="row" phx-submit="sound">
-              <input
-                name="sound"
-                list="sounds"
-                placeholder="Search, like creeper"
-                autocomplete="off"
-              />
-              <datalist id="sounds">
-                <option :for={sound <- @sounds} value={sound}></option>
-              </datalist>
-              <button>Play</button>
-            </form>
-          </section>
-
-          <section class="card">
-            <h2>Boss bar</h2>
-            <div class={["bar-preview", "bar-#{@bar["color"]}"]}>
-              <span class="bar-title">{bar_title(@bar["title"])}</span>
-              <span class="bar-track">
-                <span class="bar-fill" style={"width: #{bar_width(@bar["percent"])}%"}></span>
-              </span>
-            </div>
-            <form id="bar-form" class="bar-form" phx-submit="bar" phx-change="bar_change">
-              <input name="title" placeholder="Text" value={@bar["title"]} autocomplete="off" />
-              <input
-                name="percent"
-                type="number"
-                min="0"
-                max="100"
-                value={@bar["percent"]}
-                aria-label="Percent"
-              />
-              <select name="color" aria-label="Color">
-                <option :for={color <- @bar_colors} value={color} selected={color == @bar["color"]}>
-                  {color}
-                </option>
-              </select>
-              <button>Show</button>
-              <button id="bar-off" type="button" class="ghost" phx-click="bar_off">Off</button>
-            </form>
-          </section>
-
-          <section class="card">
-            <h2>Watch</h2>
-            <form id="watch-form" class="row" phx-submit="watch">
-              <select name="entity" aria-label="Entity">
-                <optgroup
-                  :for={{label, category} <- [{"Hostile", :hostile}, {"Passive", :passive}]}
-                  label={label}
-                >
-                  <option
-                    :for={entity <- @entities}
-                    :if={entity.category == category}
-                    value={entity.name}
-                    selected={entity.name == "zombie"}
-                  >
-                    {entity.display_name}
-                  </option>
-                </optgroup>
-              </select>
-              <input name="radius" type="number" min="1" value="16" aria-label="Radius" />
-              <button>Watch</button>
-            </form>
-            <ul :if={watches(@snapshot) != []} class="watches">
-              <li :for={{entity, radius} <- watches(@snapshot)}>
-                <span>{entity} <small>within {radius} blocks</small></span>
-                <button
-                  id={"unwatch-#{entity}"}
-                  type="button"
-                  class="ghost small"
-                  phx-click="unwatch"
-                  phx-value-entity={entity}
-                >
-                  Unwatch
-                </button>
-              </li>
+            <MapComponent.map snapshot={@snapshot} radius={24} />
+            <ul class="legend">
+              <li><span class="key you"></span>You</li>
+              <li><span class="key hostile"></span>Hostile</li>
+              <li><span class="key passive"></span>Passive</li>
+              <li><span class="key other"></span>Other</li>
+              <li><span class="key watch"></span>Watch</li>
             </ul>
           </section>
+
+          <div class="stack">
+            <section class="card">
+              <h2>Title</h2>
+              <form id="title-form" class="row" phx-submit="title">
+                <input name="text" placeholder="Hello | a subtitle" autocomplete="off" />
+                <button>Send</button>
+              </form>
+            </section>
+
+            <section class="card">
+              <h2>Action bar</h2>
+              <form id="actionbar-form" class="row" phx-submit="actionbar">
+                <input name="text" placeholder="Text above the hotbar" autocomplete="off" />
+                <button>Send</button>
+              </form>
+            </section>
+
+            <section class="card">
+              <h2>Weather</h2>
+              <div class="weather">
+                <button
+                  :for={{weather, label} <- [clear: "Clear", rain: "Rain", thunder: "Thunder"]}
+                  id={"weather-#{weather}"}
+                  type="button"
+                  class={["ghost", "weather-#{weather}"]}
+                  phx-click="weather"
+                  phx-value-weather={weather}
+                >
+                  <span class="weather-icon"></span>{label}
+                </button>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Sound</h2>
+              <form id="sound-form" class="row" phx-submit="sound">
+                <input
+                  name="sound"
+                  list="sounds"
+                  placeholder="Search, like creeper"
+                  autocomplete="off"
+                />
+                <datalist id="sounds">
+                  <option :for={sound <- @sounds} value={sound}></option>
+                </datalist>
+                <button>Play</button>
+              </form>
+            </section>
+
+            <section class="card">
+              <h2>Boss bar</h2>
+              <div class={["bar-preview", "bar-#{@bar["color"]}"]}>
+                <span class="bar-title">{bar_title(@bar["title"])}</span>
+                <span class="bar-track">
+                  <span class="bar-fill" style={"width: #{bar_width(@bar["percent"])}%"}></span>
+                </span>
+              </div>
+              <form id="bar-form" class="bar-form" phx-submit="bar" phx-change="bar_change">
+                <input name="title" placeholder="Text" value={@bar["title"]} autocomplete="off" />
+                <input
+                  name="percent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={@bar["percent"]}
+                  aria-label="Percent"
+                />
+                <select name="color" aria-label="Color">
+                  <option :for={color <- @bar_colors} value={color} selected={color == @bar["color"]}>
+                    {color}
+                  </option>
+                </select>
+                <button>Show</button>
+                <button id="bar-off" type="button" class="ghost" phx-click="bar_off">Off</button>
+              </form>
+            </section>
+
+            <section class="card">
+              <h2>Watch</h2>
+              <form id="watch-form" class="row" phx-submit="watch">
+                <select name="entity" aria-label="Entity">
+                  <optgroup
+                    :for={{label, category} <- [{"Hostile", :hostile}, {"Passive", :passive}]}
+                    label={label}
+                  >
+                    <option
+                      :for={entity <- @entities}
+                      :if={entity.category == category}
+                      value={entity.name}
+                      selected={entity.name == "zombie"}
+                    >
+                      {entity.display_name}
+                    </option>
+                  </optgroup>
+                </select>
+                <input name="radius" type="number" min="1" value="16" aria-label="Radius" />
+                <button>Watch</button>
+              </form>
+              <ul :if={watches(@snapshot) != []} class="watches">
+                <li :for={{entity, radius} <- watches(@snapshot)}>
+                  <span>{entity} <small>within {radius} blocks</small></span>
+                  <button
+                    id={"unwatch-#{entity}"}
+                    type="button"
+                    class="ghost small"
+                    phx-click="unwatch"
+                    phx-value-entity={entity}
+                  >
+                    Unwatch
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </div>
         </main>
       </div>
 
@@ -355,6 +404,10 @@ defmodule HotblockWeb.PanelLive do
       </div>
     </div>
     """
+  end
+
+  defp display_name(name) do
+    Enum.find_value(Entities.spawnable(), name, &(&1.name == name && &1.display_name))
   end
 
   defp watches(%{watches: watches}), do: Enum.sort(watches)

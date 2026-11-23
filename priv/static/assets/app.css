@@ -208,14 +208,23 @@ h2 {
     top: 76px;
   }
 
+  /* The map on the left, staying in view, and the other cards on the right */
   .controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
 
-  .controls .wide {
-    grid-column: 1 / -1;
+  .map-card {
+    position: sticky;
+    top: 76px;
   }
+}
+
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
 }
 
 /* Cards */
@@ -493,4 +502,134 @@ button.small {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* The map */
+
+.map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.map-head h2 {
+  margin: 0;
+}
+
+.map-head label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.map-waiting {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--muted);
+  cursor: default;
+  text-align: center;
+  padding: 16px;
+}
+
+.map-waiting p {
+  margin: 0;
+}
+
+.map .grid {
+  stroke: var(--border);
+  stroke-width: 0.08;
+}
+
+.map .watch {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 0.2;
+  stroke-dasharray: 0.8 0.6;
+}
+
+.map .entity {
+  stroke: var(--bg);
+  stroke-width: 0.25;
+  transition: cx 0.25s linear, cy 0.25s linear;
+}
+
+.map .hostile,
+.legend .hostile {
+  fill: var(--redstone);
+  background: var(--redstone);
+}
+
+.map .passive,
+.legend .passive {
+  fill: var(--diamond);
+  background: var(--diamond);
+}
+
+.map .other,
+.legend .other {
+  fill: var(--muted);
+  background: var(--muted);
+}
+
+.map .player polygon {
+  fill: var(--text);
+  stroke: var(--bg);
+  stroke-width: 0.3;
+  stroke-linejoin: round;
+}
+
+.map .player {
+  transition: transform 0.25s linear;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.key.you {
+  background: var(--text);
+  clip-path: polygon(50% 0, 100% 100%, 50% 75%, 0 100%);
+  border-radius: 0;
+}
+
+.key.watch {
+  border: 1.5px dashed var(--gold);
 }

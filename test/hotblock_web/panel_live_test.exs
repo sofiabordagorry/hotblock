@@ -189,6 +189,47 @@ defmodule HotblockWeb.PanelLiveTest do
     end
   end
 
+  describe "map" do
+    test "a tap on the map spawns the chosen entity at that offset", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      view |> form("#spawn-form", %{entity: "creeper"}) |> render_change()
+      view |> element("#map") |> render_hook("spawn", %{"dx" => 2, "dz" => -3.5})
+
+      assert_receive {:effect, :spawn, {"creeper", {2.0, -3.5}}}
+    end
+
+    test "zombie is the entity chosen at first", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      view |> element("#map") |> render_hook("spawn", %{"dx" => 1.0, "dz" => 1.0})
+
+      assert_receive {:effect, :spawn, {"zombie", {1.0, 1.0}}}
+    end
+  end
+
+  describe "map with a real player" do
+    setup :listen_server
+
+    test "shows the player, and keeps the last map while the connection is suspended",
+         %{conn: conn, listen: listen} do
+      {:ok, view, _html} = live(conn, "/")
+      {client, server, pid} = Hotblock.ProxyHelpers.join(listen, "Alex")
+      Hotblock.ProxyHelpers.to_play(client, server)
+      Hotblock.ProxyHelpers.move(client, server, {0.0, 64.0, 0.0})
+
+      assert eventually(fn -> has_element?(view, "#map .player") end)
+
+      :ok = :sys.suspend(pid)
+      # Longer than the refresh and the snapshot's timeout together
+      Process.sleep(600)
+      assert has_element?(view, "#map .player")
+      :ok = :sys.resume(pid)
+    end
+  end
+
   defp eventually(fun, tries \\ 40) do
     cond do
       fun.() ->
