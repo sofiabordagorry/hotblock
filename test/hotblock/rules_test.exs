@@ -132,6 +132,59 @@ defmodule Hotblock.RulesTest do
                Rules.handle_command("hotblock:fx title Hi", @state)
     end
 
+    test ":actionbar, :weather and :sound do what their commands do" do
+      for {effect, arg, command} <- [
+            {:actionbar, "Hi", "hotblock:fx actionbar Hi"},
+            {:weather, :rain, "hotblock:fx weather rain"},
+            {:sound, "entity.player.levelup", "hotblock:fx sound entity.player.levelup"}
+          ] do
+        assert Rules.handle_effect(effect, arg, @state) == Rules.handle_command(command, @state),
+               "for #{effect}"
+      end
+    end
+
+    test ":bar shows the boss bar, like /hotblock:fx bar" do
+      bar = %{health: 0.5, color: :red, title: "Hi"}
+
+      assert Rules.handle_effect(:bar, bar, @state) ==
+               Rules.handle_command("hotblock:fx bar 50 red Hi", @state)
+    end
+
+    test ":bar :off removes the boss bar, like /hotblock:fx bar off" do
+      state = %{@state | boss_bar: %{health: 0.5, color: :red, title: "Hi"}}
+
+      assert Rules.handle_effect(:bar, :off, state) ==
+               Rules.handle_command("hotblock:fx bar off", state)
+    end
+
+    test ":watch and :unwatch do what their commands do" do
+      assert Rules.handle_effect(:watch, {"zombie", 10}, @state) ==
+               Rules.handle_command("hotblock:watch zombie 10", @state)
+
+      {:ok, _, watching} = Rules.handle_command("hotblock:watch zombie 10", @state)
+
+      assert Rules.handle_effect(:unwatch, "zombie", watching) ==
+               Rules.handle_command("hotblock:unwatch zombie", watching)
+    end
+
+    test ":spawn summons the entity at the player's position plus the offset" do
+      assert Rules.handle_effect(:spawn, {"zombie", {2.0, -3.0}}, @state) ==
+               {:ok,
+                [{:server, Serverbound.chat_command("summon minecraft:zombie 2.00 64.00 -3.00")}],
+                @state}
+    end
+
+    test ":spawn replies in the chat when the position is not known or the entity is unknown" do
+      not_known =
+        Clientbound.system_chat("Your position is not known yet, move a bit and try again")
+
+      assert Rules.handle_effect(:spawn, {"zombie", {2.0, -3.0}}, %{@state | position: nil}) ==
+               {:ok, [{:client, not_known}], %{@state | position: nil}}
+
+      assert Rules.handle_effect(:spawn, {"dragon_cat", {2.0, -3.0}}, @state) ==
+               {:ok, [{:client, Clientbound.system_chat("Unknown entity: dragon_cat")}], @state}
+    end
+
     @tag :capture_log
     test "ignores an unknown effect" do
       assert Rules.handle_effect(:unknown, "hi", @state) == {:ok, [], @state}

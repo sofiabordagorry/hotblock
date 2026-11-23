@@ -27,4 +27,35 @@ defmodule Hotblock.EntitiesTest do
       refute Entities.known?("minecraft:zombie")
     end
   end
+
+  describe "spawnable/0" do
+    test "has the mobs from minecraft-data, with their display name and category" do
+      spawnable = Entities.spawnable()
+
+      assert %{name: "zombie", display_name: "Zombie", category: :hostile} in spawnable
+      assert %{name: "pig", display_name: "Pig", category: :passive} in spawnable
+    end
+
+    test "has no entities that are not mobs" do
+      names = Enum.map(Entities.spawnable(), & &1.name)
+
+      refute "arrow" in names
+      refute "oak_boat" in names
+    end
+
+    test "is sorted by display name" do
+      display_names = Enum.map(Entities.spawnable(), & &1.display_name)
+
+      assert display_names == Enum.sort(display_names)
+    end
+  end
+
+  describe "category/1" do
+    test "is :hostile, :passive or :other" do
+      assert Entities.category("zombie") == :hostile
+      assert Entities.category("pig") == :passive
+      assert Entities.category("arrow") == :other
+      assert Entities.category("not_an_entity") == :other
+    end
+  end
 end

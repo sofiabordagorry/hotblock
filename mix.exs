@@ -7,6 +7,7 @@ defmodule Hotblock.MixProject do
       version: "0.1.0",
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps()
     ]
   end
@@ -19,12 +20,17 @@ defmodule Hotblock.MixProject do
     ]
   end
 
+  # The test helpers in test/support are compiled only for the tests
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:phoenix, "~> 1.8"},
       {:phoenix_live_view, "~> 1.2"},
-      {:bandit, "~> 1.15"}
+      {:bandit, "~> 1.15"},
+      {:lazy_html, "~> 0.1.0", only: :test}
     ]
   end
 end

@@ -17,8 +17,17 @@ defmodule Hotblock.Effects.Spawn do
   def packets(_name, _distance, _direction, _player_position, nil), do: position_unknown()
 
   def packets(name, distance, direction, player_position, yaw) do
+    summon(name, position(player_position, yaw, distance, direction))
+  end
+
+  # Spawns at the player's position plus an offset in blocks, at the same
+  # height. The panel's map uses it: the offset is where the map was tapped.
+  def packets_at(_name, _offset, nil), do: position_unknown()
+
+  def packets_at(name, {dx, dz}, {x, y, z}), do: summon(name, {x + dx, y, z + dz})
+
+  defp summon(name, {x, y, z}) do
     if Entities.known?(name) do
-      {x, y, z} = position(player_position, yaw, distance, direction)
       command = "summon minecraft:#{name} #{format(x)} #{format(y)} #{format(z)}"
       {:server, Serverbound.chat_command(command)}
     else

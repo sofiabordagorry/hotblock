@@ -146,4 +146,14 @@ defmodule Hotblock.CommandsTest do
       assert Commands.parse_spawn("zombie 5 front now") == :error
     end
   end
+
+  describe "bar_colors/0" do
+    test "has the colors /hotblock:fx bar accepts, sorted" do
+      colors = Commands.bar_colors()
+
+      assert "red" in colors
+      assert "pink" in colors
+      assert colors == Enum.sort(colors)
+    end
+  end
 end

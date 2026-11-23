@@ -23,6 +23,10 @@ defmodule Hotblock.Packets.Clientbound do
   # Entities that are gone, by id
   def entity_destroy, do: 0x4D
 
+  # Disconnect the player, with the reason shown on the screen
+  # ("kick_disconnect" in minecraft-data)
+  def disconnect, do: 0x20
+
   # Show a text above the hotbar
   def action_bar, do: 0x57
 

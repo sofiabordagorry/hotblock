@@ -20,4 +20,8 @@ defmodule Hotblock.Effects.Sound do
   end
 
   def known?(name) when is_binary(name), do: MapSet.member?(@names, name)
+
+  # Sorted, for the panel's sound search
+  @sorted_names Enum.sort(@names)
+  def names, do: @sorted_names
 end

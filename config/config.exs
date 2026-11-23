@@ -8,6 +8,7 @@ config :hotblock, HotblockWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   url: [host: "localhost"],
   pubsub_server: Hotblock.PubSub,
+  render_errors: [formats: [html: HotblockWeb.ErrorHTML], layout: false],
   live_view: [signing_salt: "hotblock"]
 
 # Elixir's built-in JSON, so there is no need for Jason

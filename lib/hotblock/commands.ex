@@ -56,6 +56,9 @@ defmodule Hotblock.Commands do
 
   def all, do: @commands
 
+  # The colors /hotblock:fx bar accepts, sorted, for the panel
+  def bar_colors, do: @bar_colors |> Map.keys() |> Enum.sort()
+
   def help_text do
     lines = Enum.map(@commands, fn command -> "#{command.usage} - #{command.description}" end)
     Enum.join(["Hotblock commands:" | lines], "\n")

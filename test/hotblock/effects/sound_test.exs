@@ -36,4 +36,13 @@ defmodule Hotblock.Effects.SoundTest do
                Clientbound.system_chat("Your position is not known yet, move a bit and try again")
     end
   end
+
+  describe "names/0" do
+    test "has the sounds from minecraft-data, sorted" do
+      names = Sound.names()
+
+      assert "entity.creeper.primed" in names
+      assert names == Enum.sort(names)
+    end
+  end
 end
