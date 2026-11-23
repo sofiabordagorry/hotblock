@@ -16,5 +16,6 @@ defmodule HotblockWeb.Router do
     pipe_through :browser
 
     live "/", PanelLive, :index
+    live "/admin", PanelLive, :admin
   end
 end

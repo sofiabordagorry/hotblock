@@ -633,3 +633,50 @@ button.small {
 .key.watch {
   border: 1.5px dashed var(--gold);
 }
+
+/* Admin */
+
+.badge {
+  font-size: 11px;
+  color: #ffffff;
+  background: var(--redstone);
+  padding: 3px 6px 2px;
+  border-radius: 4px;
+}
+
+.danger-zone {
+  border-color: var(--redstone);
+}
+
+.danger-zone h2 {
+  color: var(--redstone);
+}
+
+button.danger {
+  color: #ffffff;
+  background: var(--redstone);
+  border-bottom-color: #7a1a14;
+}
+
+button.danger.ghost {
+  color: var(--redstone);
+  background: var(--bg);
+  border: 1px solid var(--redstone);
+  border-bottom: 3px solid var(--redstone);
+}
+
+.crash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.crash p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}

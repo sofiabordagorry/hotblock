@@ -200,6 +200,16 @@ defmodule HotblockWeb.PanelLiveTest do
       assert_receive {:effect, :spawn, {"creeper", {2.0, -3.5}}}
     end
 
+    test "a tap outside the map spawns nothing", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      html = view |> element("#map") |> render_hook("spawn", %{"dx" => 10_000_000, "dz" => 0})
+
+      refute_receive {:effect, _, _}
+      assert html =~ "Tap inside the map"
+    end
+
     test "zombie is the entity chosen at first", %{conn: conn} do
       view = panel(conn, ["Alex"])
       listen_to("Alex")
@@ -230,6 +240,87 @@ defmodule HotblockWeb.PanelLiveTest do
     end
   end
 
+  describe "admin" do
+    @admin "/admin?token=test-token"
+
+    test "/admin without the token is a 404", %{conn: conn} do
+      assert_error_sent 404, fn -> get(conn, "/admin") end
+    end
+
+    test "/admin with a wrong token is a 404", %{conn: conn} do
+      assert_error_sent 404, fn -> get(conn, "/admin?token=nope") end
+    end
+
+    test "with no admin token configured, /admin is always a 404", %{conn: conn} do
+      for token <- [nil, ""] do
+        Application.put_env(:hotblock, :admin_token, token)
+
+        assert_error_sent 404, fn -> get(conn, "/admin?token=") end
+        assert_error_sent 404, fn -> get(conn, "/admin?token=test-token") end
+      end
+    after
+      Application.put_env(:hotblock, :admin_token, "test-token")
+    end
+
+    test "the token is hidden in the logs" do
+      assert Phoenix.Logger.filter_values(%{"token" => "test-token"}) ==
+               %{"token" => "[FILTERED]"}
+    end
+
+    test "/ has no admin controls", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+
+      refute has_element?(view, "#kick-form")
+      refute has_element?(view, "#crash")
+    end
+
+    test "/admin with the token has kick and crash", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @admin)
+      send(view.pid, {:player_joined, "Alex"})
+
+      assert has_element?(view, "#kick-form")
+      assert has_element?(view, "#crash")
+    end
+
+    test "kick sends the reason to the player's connection", %{conn: conn} do
+      # The test process stands in for Alex's connection
+      {:ok, _} = Registry.register(Hotblock.PlayerRegistry, "Alex", nil)
+      {:ok, view, _html} = live(conn, @admin)
+
+      view |> form("#kick-form", %{reason: "Bye"}) |> render_submit()
+
+      assert_receive {:kick, "Bye"}
+    end
+
+    test "kick without a reason uses a default one", %{conn: conn} do
+      {:ok, _} = Registry.register(Hotblock.PlayerRegistry, "Alex", nil)
+      {:ok, view, _html} = live(conn, @admin)
+
+      view |> form("#kick-form", %{reason: " "}) |> render_submit()
+
+      assert_receive {:kick, "Kicked from the Hotblock panel"}
+    end
+  end
+
+  describe "admin with real players" do
+    setup :listen_server
+
+    test "crash kills only that player's connection", %{conn: conn, listen: listen} do
+      {_alex_client, _alex_server, alex} = Hotblock.ProxyHelpers.join(listen, "Alex")
+      {steve_client, steve_server, steve} = Hotblock.ProxyHelpers.join(listen, "Steve")
+      ref = Process.monitor(alex)
+      {:ok, view, _html} = live(conn, @admin)
+
+      view |> element("#crash") |> render_click()
+
+      assert_receive {:DOWN, ^ref, :process, ^alex, :killed}
+      assert Process.alive?(steve)
+
+      :ok = :gen_tcp.send(steve_client, <<0x01, 0xAA>>)
+      assert {:ok, <<0x01, 0xAA>>} = :gen_tcp.recv(steve_server, 2, 1000)
+    end
+  end
+
   defp eventually(fun, tries \\ 40) do
     cond do
       fun.() ->
@@ -241,6 +332,35 @@ defmodule HotblockWeb.PanelLiveTest do
 
       true ->
         false
+    end
+  end
+
+  describe "unexpected events" do
+    test "admin events on / do nothing and the page keeps working", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+
+      assert render_hook(view, "crash", %{}) =~ "not available here"
+      assert render_hook(view, "kick", %{"reason" => "x"}) =~ "not available here"
+      assert Process.alive?(view.pid)
+    end
+
+    test "events with wrong values do nothing and the page keeps working", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      render_hook(view, "spawn", %{"dx" => "a", "dz" => 0})
+      render_hook(view, "weather", %{"weather" => "snow"})
+
+      refute_receive {:effect, _, _}
+      assert Process.alive?(view.pid)
+    end
+
+    test "selecting a player who is not online keeps the selection", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+
+      render_hook(view, "select", %{"name" => "Ghost"})
+
+      assert has_element?(view, "#players [data-player=Alex][aria-current=true]")
     end
   end
 

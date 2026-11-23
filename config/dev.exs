@@ -3,6 +3,10 @@ import Config
 # Log every packet (state, direction, ID, size)
 config :hotblock, packet_logger_enabled: false
 
+# The token for /admin?token=..., which has the kick and crash buttons.
+# There is no default: without HOTBLOCK_ADMIN_TOKEN, /admin is always a 404.
+config :hotblock, admin_token: System.get_env("HOTBLOCK_ADMIN_TOKEN")
+
 # Serve the web panel on port 4000 when running iex -S mix
 config :hotblock, HotblockWeb.Endpoint,
   http: [ip: {0, 0, 0, 0}, port: 4000],

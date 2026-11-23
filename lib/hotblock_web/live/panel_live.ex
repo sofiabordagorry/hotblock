@@ -10,11 +10,19 @@ defmodule HotblockWeb.PanelLive do
   alias Hotblock.Effects.Sound
   alias HotblockWeb.MapComponent
 
+  # How many blocks the map shows around the player
+  @map_radius 24
+
   # How often the page asks the selected player's connection for its state
   @refresh_ms 250
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    admin? = socket.assigns.live_action == :admin
+
+    # Without the right token, /admin looks like it does not exist
+    if admin? and not valid_token?(params["token"]), do: raise(HotblockWeb.NotFoundError)
+
     if connected?(socket) do
       # Subscribes before listing, so nobody who joins in between is missed
       Phoenix.PubSub.subscribe(Hotblock.PubSub, "players")
@@ -28,14 +36,22 @@ defmodule HotblockWeb.PanelLive do
        players: players,
        selected: List.first(players),
        snapshot: nil,
-       admin?: false,
+       admin?: admin?,
        entities: Entities.spawnable(),
        sounds: Sound.names(),
        bar_colors: Commands.bar_colors(),
        bar: %{"title" => "", "percent" => "50", "color" => "red"},
-       spawn_entity: "zombie"
+       spawn_entity: "zombie",
+       map_radius: @map_radius
      )}
   end
+
+  defp valid_token?(token) when is_binary(token) do
+    expected = Application.get_env(:hotblock, :admin_token)
+    is_binary(expected) and expected != "" and Plug.Crypto.secure_compare(token, expected)
+  end
+
+  defp valid_token?(_token), do: false
 
   # Players joining and leaving
 
@@ -89,18 +105,29 @@ defmodule HotblockWeb.PanelLive do
 
   @impl true
   def handle_event("select", %{"name" => name}, socket) do
-    {:noreply, select(socket, name)}
+    if name in socket.assigns.players do
+      {:noreply, select(socket, name)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("spawn_entity", %{"entity" => entity}, socket) do
     {:noreply, assign(socket, spawn_entity: entity)}
   end
 
-  # A tap on the map, as an offset in blocks from the player
+  # A tap on the map, as an offset in blocks from the player. Only taps
+  # inside the map count.
   def handle_event("spawn", %{"dx" => dx, "dz" => dz}, socket)
       when is_number(dx) and is_number(dz) do
-    entity = socket.assigns.spawn_entity
-    {:noreply, send_effect(socket, :spawn, {entity, {dx * 1.0, dz * 1.0}}, display_name(entity))}
+    if dx * dx + dz * dz <= @map_radius * @map_radius do
+      entity = socket.assigns.spawn_entity
+
+      {:noreply,
+       send_effect(socket, :spawn, {entity, {dx * 1.0, dz * 1.0}}, display_name(entity))}
+    else
+      {:noreply, error(socket, "Tap inside the map")}
+    end
   end
 
   def handle_event("title", %{"text" => text}, socket) do
@@ -183,6 +210,54 @@ defmodule HotblockWeb.PanelLive do
     {:noreply, send_effect(socket, :unwatch, entity, "Unwatch")}
   end
 
+  # Admin only
+
+  def handle_event("kick", %{"reason" => reason}, %{assigns: %{admin?: true}} = socket) do
+    reason =
+      case String.trim(reason) do
+        "" -> "Kicked from the Hotblock panel"
+        reason -> reason
+      end
+
+    with_connection(socket, fn pid, name ->
+      Connection.kick(pid, reason)
+      "#{name} was kicked"
+    end)
+  end
+
+  # Kills the connection's process on purpose. The supervisor doesn't restart
+  # it, and the other players' connections are separate processes, so they
+  # keep playing.
+  def handle_event("crash", _params, %{assigns: %{admin?: true}} = socket) do
+    with_connection(socket, fn pid, name ->
+      Process.exit(pid, :kill)
+      "#{name}'s connection crashed. The others keep playing."
+    end)
+  end
+
+  # Anything else: an admin action outside /admin, or values the controls
+  # never send
+  def handle_event(event, _params, socket) when event in ["kick", "crash"] do
+    {:noreply, error(socket, "That is not available here")}
+  end
+
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # Runs fun with the selected player's connection, and shows the message it
+  # returns
+  defp with_connection(socket, fun) do
+    name = socket.assigns.selected
+
+    case name && Registry.lookup(Hotblock.PlayerRegistry, name) do
+      [{pid, _}] ->
+        message = fun.(pid, name)
+        {:noreply, socket |> clear_flash() |> put_flash(:info, message)}
+
+      _ ->
+        {:noreply, error(socket, "#{name || "Nobody"} is not connected")}
+    end
+  end
+
   defp percent(text) do
     case Integer.parse(String.trim(text)) do
       {percent, ""} when percent in 0..100 -> percent
@@ -212,7 +287,7 @@ defmodule HotblockWeb.PanelLive do
     ~H"""
     <div class="app">
       <header class="top">
-        <h1 class="logo">Hotblock</h1>
+        <h1 class="logo">Hotblock <span :if={@admin?} class="badge">Admin</span></h1>
         <span class="online">
           <span class={["pulse", @players == [] && "off"]}></span>
           {length(@players)} online
@@ -266,7 +341,7 @@ defmodule HotblockWeb.PanelLive do
                 </label>
               </form>
             </div>
-            <MapComponent.map snapshot={@snapshot} radius={24} />
+            <MapComponent.map snapshot={@snapshot} radius={@map_radius} />
             <ul class="legend">
               <li><span class="key you"></span>You</li>
               <li><span class="key hostile"></span>Hostile</li>
@@ -388,6 +463,26 @@ defmodule HotblockWeb.PanelLive do
                   </button>
                 </li>
               </ul>
+            </section>
+
+            <section :if={@admin?} class="card danger-zone">
+              <h2>Admin</h2>
+              <form id="kick-form" class="row" phx-submit="kick">
+                <input name="reason" placeholder="Reason for the kick" autocomplete="off" />
+                <button class="danger">Kick</button>
+              </form>
+              <div class="crash">
+                <p>Kills {@selected}'s connection on purpose. The others keep playing.</p>
+                <button
+                  id="crash"
+                  type="button"
+                  class="danger ghost"
+                  phx-click="crash"
+                  data-confirm={"Crash #{@selected}'s connection?"}
+                >
+                  Crash
+                </button>
+              </div>
             </section>
           </div>
         </main>
