@@ -17,7 +17,7 @@ defmodule Hotblock.PlayerTest do
   test "registers the connection under the player name", %{listen: listen} do
     {_client, _server, pid} = join(listen, "Alex")
 
-    assert [{^pid, _}] = lookup("Alex")
+    assert [{^pid, _}] = Registry.lookup(Hotblock.PlayerRegistry, "Alex")
     assert pid in connections()
   end
 
