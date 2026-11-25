@@ -13,5 +13,8 @@ config :hotblock, HotblockWeb.Endpoint,
 
 config :hotblock, admin_token: "test-token"
 
+# The poller resets the packet counters, so in the tests it barely runs
+config :hotblock, telemetry_period: :timer.hours(1)
+
 # Only show warnings and errors in the tests
 config :logger, level: :warning

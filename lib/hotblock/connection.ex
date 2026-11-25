@@ -122,6 +122,7 @@ defmodule Hotblock.Connection do
   # Entity packets also update the entity watch, which can send alerts.
   defp handle_server_frame(frame, state) do
     state = update_in(state.stats.from_server, &(&1 + 1))
+    Hotblock.Telemetry.packet(:from_server)
     PacketLogger.log(state.phase, :s2c, frame)
     :gen_tcp.send(state.client, Encoder.encode_frame(frame))
 
@@ -137,6 +138,7 @@ defmodule Hotblock.Connection do
 
   defp handle_client_frame(frame, state) do
     state = update_in(state.stats.from_client, &(&1 + 1))
+    Hotblock.Telemetry.packet(:from_client)
 
     phase = state.phase
 

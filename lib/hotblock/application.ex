@@ -7,6 +7,9 @@ defmodule Hotblock.Application do
 
   @impl true
   def start(_type, _args) do
+    # The packet counters must exist before the first connection
+    Hotblock.Telemetry.setup()
+
     children = [
       {Phoenix.PubSub, name: Hotblock.PubSub},
       # Starts before the Registry, which notifies it by name
@@ -14,6 +17,7 @@ defmodule Hotblock.Application do
       {Registry, keys: :unique, name: Hotblock.PlayerRegistry, listeners: [Hotblock.Players]},
       {DynamicSupervisor, name: Hotblock.ConnectionSupervisor, strategy: :one_for_one},
       Supervisor.child_spec({Task, fn -> Hotblock.Proxy.accept(25565) end}, restart: :permanent),
+      HotblockWeb.Telemetry,
       HotblockWeb.Endpoint
     ]
 
