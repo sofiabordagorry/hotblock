@@ -33,6 +33,28 @@ defmodule Hotblock.ConnectionTest do
   end
 
   describe "a connection" do
+    test "keeps both sockets in active: :once after handling data", %{listen: listen} do
+      {client, server, pid} = connect(listen)
+
+      :ok = :gen_tcp.send(client, <<0x01, 0xAA>>)
+      {:ok, _} = :gen_tcp.recv(server, 2, 1000)
+      :ok = :gen_tcp.send(server, <<0x01, 0xBB>>)
+      {:ok, _} = :gen_tcp.recv(client, 2, 1000)
+
+      state = :sys.get_state(pid)
+      assert :inet.getopts(state.client, [:active]) == {:ok, [active: :once]}
+      assert :inet.getopts(state.server, [:active]) == {:ok, [active: :once]}
+    end
+
+    test "forwards a burst of frames in order", %{listen: listen} do
+      {client, server, _pid} = connect(listen)
+      frames = for n <- 1..2_000, into: <<>>, do: <<0x02, 0x01, rem(n, 256)>>
+
+      for <<frame::binary-size(3) <- frames>>, do: :ok = :gen_tcp.send(server, frame)
+
+      assert {:ok, ^frames} = :gen_tcp.recv(client, byte_size(frames), 5000)
+    end
+
     test "starts with the current version and empty stats", %{listen: listen} do
       {_client, _server, pid} = connect(listen)
 

@@ -34,7 +34,7 @@ defmodule Hotblock.Connection do
     server_port = Application.get_env(:hotblock, :server_port, 25566)
 
     {:ok, server} =
-      :gen_tcp.connect(~c"localhost", server_port, [:binary, packet: :raw, active: true])
+      :gen_tcp.connect(~c"localhost", server_port, [:binary, packet: :raw, active: :once])
 
     Logger.info("Connected to server")
 
@@ -54,21 +54,24 @@ defmodule Hotblock.Connection do
      }}
   end
 
+  # active: :once, so data the connection can't keep up with waits in the socket
   @impl true
   def handle_info(:activate, state) do
-    :inet.setopts(state.client, active: true)
+    :inet.setopts(state.client, active: :once)
     {:noreply, state}
   end
 
   def handle_info({:tcp, client, data}, %{client: client} = state) do
     {:ok, frames, rest} = Protocol.split_frames(state.client_buffer <> data)
     state = Enum.reduce(frames, state, &handle_client_frame/2)
+    :inet.setopts(client, active: :once)
     {:noreply, %{state | client_buffer: rest}}
   end
 
   def handle_info({:tcp, server, data}, %{server: server} = state) do
     {:ok, frames, rest} = Protocol.split_frames(state.server_buffer <> data)
     state = Enum.reduce(frames, state, &handle_server_frame/2)
+    :inet.setopts(server, active: :once)
     {:noreply, %{state | server_buffer: rest}}
   end
 
