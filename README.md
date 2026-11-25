@@ -75,6 +75,10 @@ HOTBLOCK_ADMIN_TOKEN=secret iex -S mix
 http://localhost:4000/admin?token=secret
 ```
 
+`/dashboard` shows the process tree and live metrics: players connected,
+packets per second and reloads. Log in with user `admin` and the token as the
+password.
+
 To share the panel through a tunnel, start with its public URL too.
 `/admin/qr?token=secret` shows it as a QR code. Visitors can send one effect
 every 2 seconds.
