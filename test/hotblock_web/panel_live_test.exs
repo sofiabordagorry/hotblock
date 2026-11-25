@@ -340,6 +340,48 @@ defmodule HotblockWeb.PanelLiveTest do
     end
   end
 
+  describe "limit per visitor" do
+    setup do
+      Application.put_env(:hotblock, :effect_cooldown_ms, 60_000)
+      on_exit(fn -> Application.put_env(:hotblock, :effect_cooldown_ms, 0) end)
+    end
+
+    test "a visitor can't send another effect before the limit", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      view |> element("#weather-rain") |> render_click()
+      html = view |> element("#weather-clear") |> render_click()
+
+      assert_receive {:effect, :weather, :rain}
+      refute_receive {:effect, :weather, :clear}
+      assert html =~ "Wait a moment"
+    end
+
+    test "the limit also counts taps on the map", %{conn: conn} do
+      view = panel(conn, ["Alex"])
+      listen_to("Alex")
+
+      view |> element("#weather-rain") |> render_click()
+      view |> element("#map") |> render_hook("spawn", %{"dx" => 1, "dz" => 1})
+
+      assert_receive {:effect, :weather, :rain}
+      refute_receive {:effect, :spawn, _}
+    end
+
+    test "the admin page has no limit", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/admin?token=test-token")
+      send(view.pid, {:player_joined, "Alex"})
+      listen_to("Alex")
+
+      view |> element("#weather-rain") |> render_click()
+      view |> element("#weather-clear") |> render_click()
+
+      assert_receive {:effect, :weather, :rain}
+      assert_receive {:effect, :weather, :clear}
+    end
+  end
+
   describe "unexpected events" do
     test "admin events on / do nothing and the page keeps working", %{conn: conn} do
       view = panel(conn, ["Alex"])

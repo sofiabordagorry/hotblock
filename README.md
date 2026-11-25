@@ -75,6 +75,14 @@ HOTBLOCK_ADMIN_TOKEN=secret iex -S mix
 http://localhost:4000/admin?token=secret
 ```
 
+To share the panel through a tunnel, start with its public URL too.
+`/admin/qr?token=secret` shows it as a QR code. Visitors can send one effect
+every 2 seconds.
+
+```
+HOTBLOCK_PUBLIC_URL=https://example.trycloudflare.com HOTBLOCK_ADMIN_TOKEN=secret iex -S mix
+```
+
 ## Hot reload
 
 Change the code and run this in IEx:

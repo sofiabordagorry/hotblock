@@ -683,3 +683,34 @@ button.danger.ghost {
   color: var(--muted);
   font-size: 13px;
 }
+
+/* The QR page, to project */
+
+.qr-page {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 24px;
+  padding: 24px;
+  text-align: center;
+}
+
+.qr {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+}
+
+.qr svg {
+  display: block;
+  width: min(80vmin, 600px);
+  height: auto;
+}
+
+.qr-url {
+  font-family: var(--body);
+  font-size: clamp(16px, 3vw, 32px);
+  margin: 0;
+  word-break: break-all;
+}

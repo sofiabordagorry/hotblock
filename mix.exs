@@ -33,6 +33,7 @@ defmodule Hotblock.MixProject do
       {:phoenix_live_dashboard, "~> 0.9"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
+      {:eqrcode, "~> 0.2.1"},
       {:lazy_html, "~> 0.1.0", only: :test},
       {:stream_data, "~> 1.1", only: [:dev, :test]}
     ]
