@@ -5,21 +5,33 @@ defmodule HotblockWeb.PanelLiveTest do
 
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
-  import Hotblock.ProxyHelpers, only: [listen_server: 1]
+
+  import Hotblock.ProxyHelpers,
+    only: [listen_server: 1, join: 2, to_play: 2, move: 3, free?: 1, wait_until_no_connections: 0]
 
   @endpoint HotblockWeb.Endpoint
 
+  # Players from other tests may still be closing. The page lists the names in
+  # the Registry, which frees them a moment after the connection ends.
   setup do
-    wait_until_nobody_is_online()
+    wait_until_no_connections()
+    for name <- Hotblock.Players.list(), do: assert(free?(name))
     %{conn: build_conn()}
   end
 
-  # Players from other tests may still be closing
-  defp wait_until_nobody_is_online(tries \\ 50) do
-    if Hotblock.Players.list() != [] and tries > 0 do
-      Process.sleep(20)
-      wait_until_nobody_is_online(tries - 1)
-    end
+  # The page asks the connection for its state every 250 ms. Instead of
+  # waiting for that, the test asks it to refresh now. render/1 answers once
+  # the page has handled the refresh.
+  defp refresh(view) do
+    send(view.pid, :refresh)
+    render(view)
+  end
+
+  # Players sends the page {:player_joined, name} when a connection registers.
+  # Once Players answers this call, that message has been sent.
+  defp players_told(view) do
+    :sys.get_state(Hotblock.Players)
+    render(view)
   end
 
   # Opens the panel with these players online. The players are not real
@@ -176,12 +188,15 @@ defmodule HotblockWeb.PanelLiveTest do
     test "lists the watches of the player, and unwatch broadcasts the effect",
          %{conn: conn, listen: listen} do
       {:ok, view, _html} = live(conn, "/")
-      {_client, _server, _pid} = Hotblock.ProxyHelpers.join(listen, "Alex")
+      {_client, _server, pid} = join(listen, "Alex")
+      players_told(view)
       listen_to("Alex")
       Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:Alex", {:effect, :watch, {"zombie", 10}})
+      # Once the connection answers, it has handled the watch
+      :sys.get_state(pid)
 
-      # The page asks the connection for its state a few times a second
-      assert eventually(fn -> has_element?(view, "#unwatch-zombie") end)
+      refresh(view)
+      assert has_element?(view, "#unwatch-zombie")
 
       view |> element("#unwatch-zombie") |> render_click()
 
@@ -226,15 +241,19 @@ defmodule HotblockWeb.PanelLiveTest do
     test "shows the player, and keeps the last map while the connection is suspended",
          %{conn: conn, listen: listen} do
       {:ok, view, _html} = live(conn, "/")
-      {client, server, pid} = Hotblock.ProxyHelpers.join(listen, "Alex")
-      Hotblock.ProxyHelpers.to_play(client, server)
-      Hotblock.ProxyHelpers.move(client, server, {0.0, 64.0, 0.0})
+      {client, server, pid} = join(listen, "Alex")
+      players_told(view)
+      to_play(client, server)
+      move(client, server, {0.0, 64.0, 0.0})
+      # Once the connection answers, it has read the position
+      :sys.get_state(pid)
 
-      assert eventually(fn -> has_element?(view, "#map .player") end)
+      refresh(view)
+      assert has_element?(view, "#map .player")
 
+      # The snapshot times out after 200 ms, and the page keeps the last map
       :ok = :sys.suspend(pid)
-      # Longer than the refresh and the snapshot's timeout together
-      Process.sleep(600)
+      refresh(view)
       assert has_element?(view, "#map .player")
       :ok = :sys.resume(pid)
     end
@@ -306,8 +325,8 @@ defmodule HotblockWeb.PanelLiveTest do
     setup :listen_server
 
     test "crash kills only that player's connection", %{conn: conn, listen: listen} do
-      {_alex_client, _alex_server, alex} = Hotblock.ProxyHelpers.join(listen, "Alex")
-      {steve_client, steve_server, steve} = Hotblock.ProxyHelpers.join(listen, "Steve")
+      {_alex_client, _alex_server, alex} = join(listen, "Alex")
+      {steve_client, steve_server, steve} = join(listen, "Steve")
       ref = Process.monitor(alex)
       {:ok, view, _html} = live(conn, @admin)
 
@@ -318,20 +337,6 @@ defmodule HotblockWeb.PanelLiveTest do
 
       :ok = :gen_tcp.send(steve_client, <<0x01, 0xAA>>)
       assert {:ok, <<0x01, 0xAA>>} = :gen_tcp.recv(steve_server, 2, 1000)
-    end
-  end
-
-  defp eventually(fun, tries \\ 40) do
-    cond do
-      fun.() ->
-        true
-
-      tries > 0 ->
-        Process.sleep(25)
-        eventually(fun, tries - 1)
-
-      true ->
-        false
     end
   end
 

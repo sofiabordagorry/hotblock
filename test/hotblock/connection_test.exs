@@ -3,47 +3,15 @@ defmodule Hotblock.ConnectionTest do
   # reloads the Connection module
   use ExUnit.Case, async: false
 
+  import Hotblock.ProxyHelpers, only: [listen_server: 1, connect: 1]
+
   alias Hotblock.Connection
   alias Hotblock.Reload
-
-  @proxy_port 25565
-  @opts [:binary, packet: :raw, active: false]
 
   # The state before stats existed: no version and no stats
   @old_fields [:version, :stats]
 
-  setup do
-    server_port = Application.fetch_env!(:hotblock, :server_port)
-    {:ok, listen} = :gen_tcp.listen(server_port, @opts ++ [reuseaddr: true])
-    on_exit(fn -> :gen_tcp.close(listen) end)
-    %{listen: listen}
-  end
-
-  # Connects a fake client and a fake server through the proxy, and returns
-  # the pid of the connection process the proxy started for them
-  defp connect(listen) do
-    before = connections()
-    {:ok, client} = :gen_tcp.connect(~c"localhost", @proxy_port, @opts)
-    {:ok, server} = :gen_tcp.accept(listen, 1000)
-    {client, server, new_connection(before)}
-  end
-
-  defp connections do
-    for {_, pid, _, _} <- DynamicSupervisor.which_children(Hotblock.ConnectionSupervisor),
-        is_pid(pid),
-        do: pid
-  end
-
-  defp new_connection(before, tries \\ 20) do
-    case connections() -- before do
-      [pid] ->
-        pid
-
-      [] when tries > 0 ->
-        Process.sleep(10)
-        new_connection(before, tries - 1)
-    end
-  end
+  setup :listen_server
 
   # Makes a running connection look like it was started by the code from
   # before this change

@@ -81,23 +81,13 @@ defmodule Hotblock.PlayersTest do
     ref = Process.monitor(old_players)
     Process.exit(old_players, :kill)
     assert_receive {:DOWN, ^ref, :process, _, :killed}
-    wait_for_restart()
+    # The app's supervisor restarts Players when it gets the exit, so once it
+    # answers this call, the new Players is running
+    :sys.get_state(Hotblock.Supervisor)
     Phoenix.PubSub.subscribe(Hotblock.PubSub, "players")
 
     Process.exit(ghost, :kill)
 
     assert_receive {:player_left, "Ghost"}, 1000
-  end
-
-  defp wait_for_restart(tries \\ 50) do
-    case Process.whereis(Players) do
-      nil when tries > 0 ->
-        Process.sleep(10)
-        wait_for_restart(tries - 1)
-
-      pid ->
-        # Waits until init has run
-        :sys.get_state(pid)
-    end
   end
 end

@@ -89,6 +89,16 @@ defmodule Hotblock.Reload do
   # connection migrates its state before it resumes. `load` is there so tests
   # can make the load fail.
   def load_and_migrate(modules, connections, load \\ &load_modules/1) do
+    :telemetry.span([:hotblock, :reload], %{modules: modules}, fn ->
+      result = suspend_load_and_migrate(modules, connections, load)
+      {result, %{modules: modules, result: result_name(result)}}
+    end)
+  end
+
+  defp result_name({:ok, _loaded}), do: :ok
+  defp result_name({:error, {:old_code_in_use, _modules}}), do: :refused
+
+  defp suspend_load_and_migrate(modules, connections, load) do
     Enum.each(connections, &:sys.suspend/1)
 
     try do
