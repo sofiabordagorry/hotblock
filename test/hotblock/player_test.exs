@@ -147,6 +147,17 @@ defmodule Hotblock.PlayerTest do
     assert {:error, :timeout} = :gen_tcp.recv(client, 0, 200)
   end
 
+  test "the client gets the proxy's commands for autocomplete", %{listen: listen} do
+    {client, server, _pid} = join(listen, "Typer")
+    to_play(client, server)
+
+    tree = Encoder.encode_frame(<<0x10, 0x01, 0x00, 0x00, 0x00>>)
+    :ok = :gen_tcp.send(server, tree)
+
+    {:ok, received} = :gen_tcp.recv(client, 0, 1000)
+    assert received =~ "hotblock:hello"
+  end
+
   test "the name is free again once the player disconnects", %{listen: listen} do
     {client, _server, pid} = join(listen, "Jeb")
     ref = Process.monitor(pid)

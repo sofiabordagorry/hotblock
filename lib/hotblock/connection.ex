@@ -5,6 +5,7 @@ defmodule Hotblock.Connection do
   """
   use GenServer, restart: :temporary
 
+  alias Hotblock.CommandTree
   alias Hotblock.Effects.EntityWatch
   alias Hotblock.PacketLogger
   alias Hotblock.Protocol
@@ -127,7 +128,11 @@ defmodule Hotblock.Connection do
     state = update_in(state.stats.from_server, &(&1 + 1))
     Hotblock.Telemetry.packet(:from_server)
     PacketLogger.log(state.phase, :s2c, frame)
-    :gen_tcp.send(state.client, Encoder.encode_frame(frame))
+
+    :gen_tcp.send(
+      state.client,
+      Encoder.encode_frame(CommandTree.add_to_frame(state.phase, frame))
+    )
 
     case Protocol.decode_entity_event(state.phase, frame) do
       :error ->

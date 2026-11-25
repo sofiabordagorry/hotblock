@@ -5,6 +5,9 @@ defmodule Hotblock.Packets.Clientbound do
   # A new entity appears: its id, UUID, type and position
   def spawn_entity, do: 0x01
 
+  # The tree of commands the client can autocomplete
+  def declare_commands, do: 0x10
+
   # Create, update or remove a boss bar at the top of the screen
   def boss_bar, do: 0x09
 
