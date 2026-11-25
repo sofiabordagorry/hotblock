@@ -21,7 +21,8 @@ defmodule HotblockWeb.PanelLive do
     admin? = socket.assigns.live_action == :admin
 
     # Without the right token, /admin looks like it does not exist
-    if admin? and not valid_token?(params["token"]), do: raise(HotblockWeb.NotFoundError)
+    if admin? and not HotblockWeb.AdminToken.valid?(params["token"]),
+      do: raise(HotblockWeb.NotFoundError)
 
     if connected?(socket) do
       # Subscribes before listing, so nobody who joins in between is missed
@@ -42,16 +43,10 @@ defmodule HotblockWeb.PanelLive do
        bar_colors: Commands.bar_colors(),
        bar: %{"title" => "", "percent" => "50", "color" => "red"},
        spawn_entity: "zombie",
+       last_effect_at: nil,
        map_radius: @map_radius
      )}
   end
-
-  defp valid_token?(token) when is_binary(token) do
-    expected = Application.get_env(:hotblock, :admin_token)
-    is_binary(expected) and expected != "" and Plug.Crypto.secure_compare(token, expected)
-  end
-
-  defp valid_token?(_token), do: false
 
   # Players joining and leaving
 
@@ -270,12 +265,27 @@ defmodule HotblockWeb.PanelLive do
   end
 
   defp send_effect(socket, effect, arg, what) do
-    name = socket.assigns.selected
-    Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:" <> name, {:effect, effect, arg})
+    if too_soon?(socket) do
+      error(socket, "Wait a moment before the next effect")
+    else
+      name = socket.assigns.selected
+      Phoenix.PubSub.broadcast(Hotblock.PubSub, "player:" <> name, {:effect, effect, arg})
 
-    socket
-    |> clear_flash()
-    |> put_flash(:info, "#{what} sent to #{name}")
+      socket
+      |> assign(last_effect_at: System.monotonic_time(:millisecond))
+      |> clear_flash()
+      |> put_flash(:info, "#{what} sent to #{name}")
+    end
+  end
+
+  # Each visitor waits between effects, so nobody floods the player. The
+  # admin doesn't. The limit is read every time, so it can change live.
+  defp too_soon?(%{assigns: %{admin?: true}}), do: false
+  defp too_soon?(%{assigns: %{last_effect_at: nil}}), do: false
+
+  defp too_soon?(socket) do
+    cooldown = Application.get_env(:hotblock, :effect_cooldown_ms, 2_000)
+    System.monotonic_time(:millisecond) - socket.assigns.last_effect_at < cooldown
   end
 
   defp error(socket, message), do: socket |> clear_flash() |> put_flash(:error, message)

@@ -30,6 +30,7 @@ defmodule HotblockWeb.Router do
 
     live "/", PanelLive, :index
     live "/admin", PanelLive, :admin
+    live "/admin/qr", QrLive
   end
 
   defp require_admin(conn, _opts) do

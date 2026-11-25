@@ -13,6 +13,9 @@ config :hotblock, HotblockWeb.Endpoint,
 
 config :hotblock, admin_token: "test-token"
 
+# No limit between effects, so the tests can send them one after another
+config :hotblock, effect_cooldown_ms: 0
+
 # The poller resets the packet counters, so in the tests it barely runs
 config :hotblock, telemetry_period: :timer.hours(1)
 
