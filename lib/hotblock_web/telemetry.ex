@@ -1,5 +1,7 @@
 defmodule HotblockWeb.Telemetry do
-  # Measures the proxy every second and lists the metrics LiveDashboard shows
+  @moduledoc """
+  Measures the proxy every second and lists the metrics LiveDashboard shows.
+  """
   use Supervisor
 
   import Telemetry.Metrics

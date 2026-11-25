@@ -30,12 +30,10 @@ defmodule Hotblock.MixProject do
       {:phoenix, "~> 1.8"},
       {:phoenix_live_view, "~> 1.2"},
       {:bandit, "~> 1.15"},
-      # The /dashboard page, with the process tree and the proxy's metrics
       {:phoenix_live_dashboard, "~> 0.9"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:lazy_html, "~> 0.1.0", only: :test},
-      # Property tests: generates many random inputs for each test
       {:stream_data, "~> 1.1", only: [:dev, :test]}
     ]
   end
